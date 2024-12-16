@@ -3,39 +3,48 @@
 //! Use the [`ScrollBuilder`](crate::prelude::ScrollBuilder) to dynamically
 //! construct scrolling text...
 //! ```
+//! # use bevy::prelude::*;
+//! # use bevy_pretty_text::prelude::*;
 //! #[derive(Component)]
 //! struct MyScroll;
 //!
-//! ScrollBuilder::from_text("I am repeating!")
-//!     .speed(1. / 5.) // 5 characters per second
-//!     .mode(ScrollMode::Repeating)
-//!     .spawn(&mut commands)
-//!     .insert(MyScroll);
+//! fn system(mut commands: Commands) {
+//!     ScrollBuilder::from_text("I am repeating!")
+//!         .speed(1. / 5.) // 5 characters per second
+//!         .mode(ScrollMode::Repeating)
+//!         .spawn(&mut commands)
+//!         .insert(MyScroll);
+//! }
 //! ```
 //!
 //! Or, simply add the [`Scroll`](crate::prelude::Scroll) component to any
 //! entity that contains a [`TypeWriterSection`](crate::prelude::TypeWriterSection).
 //! ```
-//! commands.spawn((
+//! # use bevy::prelude::*;
+//! # use bevy_pretty_text::prelude::*;
+//! (
 //!     Scroll(1. / 2.),
-//!     Anchor::TopLeft,
-//!     TypeWriterSection::from("I am anchored!"),
-//! ));
+//!     TypeWriterSection::from("Look at me!"),
+//! );
 //! ```
 //!
 //! If you want to directly controll what is displayed, then use a
 //! [`SectionSlice`](crate::prelude::SectionSlice).
 //! ```
-//! commands.spawn((
+//! # use bevy::prelude::*;
+//! # use bevy_pretty_text::prelude::*;
+//! (
 //!     SectionSlice::All,
 //!     TypeWriterSection::from("I am fully displayed!"),
-//! ));
+//! );
 //! ```
 //!
 //! A `TypeWriterSection` is just a Text2d hierarchy. This means that you interact
 //! with it as a Text2d component, e.g.
 //! ```
-//! commands.spawn((
+//! # use bevy::{prelude::*, text::*};
+//! # use bevy_pretty_text::prelude::*;
+//! (
 //!     Scroll(1. / 2.),
 //!     s!("`012`[wave]3`456789|blue`"),
 //!     TextFont {
@@ -47,7 +56,7 @@
 //!         width: Some(200.),
 //!         height: Some(40.),
 //!     },
-//! ));
+//! );
 //! ```
 
 use self::materials::{ShakeMaterial, TextShaderPlugin};
