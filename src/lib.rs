@@ -6,7 +6,7 @@
 //! #[derive(Component)]
 //! struct MyScroll;
 //!
-//! Scroll::from_section("I am repeating!".into())
+//! ScrollBuilder::from_text("I am repeating!")
 //!     .speed(1. / 5.) // 5 characters per second
 //!     .mode(ScrollMode::Repeating)
 //!     .spawn(&mut commands)
@@ -69,6 +69,7 @@ pub mod type_writer;
 
 pub mod prelude {
     pub use crate::type_writer::{scroll::*, section::*};
+    pub use crate::PrettyTextPlugin;
     pub use macros::s;
 }
 

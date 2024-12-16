@@ -7,12 +7,6 @@ use std::time::Duration;
 #[require(TypeWriterIndex, ScrollMode, ScrollTimer)]
 pub struct Scroll(pub f32);
 
-impl Scroll {
-    pub fn from_section(section: TypeWriterSection) -> ScrollBuilder {
-        ScrollBuilder::default().section(section)
-    }
-}
-
 #[derive(Component)]
 pub struct ScrollBuilder {
     speed: f32,
@@ -21,6 +15,14 @@ pub struct ScrollBuilder {
 }
 
 impl ScrollBuilder {
+    pub fn from_text(text: impl Into<TwText>) -> ScrollBuilder {
+        Self::default().section(TypeWriterSection::new(text.into()))
+    }
+
+    pub fn from_section(section: TypeWriterSection) -> ScrollBuilder {
+        Self::default().section(section)
+    }
+
     pub fn section(mut self, section: TypeWriterSection) -> Self {
         self.section = section;
         self

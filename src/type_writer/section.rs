@@ -17,6 +17,13 @@ pub struct TypeWriterSection {
 }
 
 impl TypeWriterSection {
+    pub fn new(text: TwText) -> Self {
+        Self {
+            text,
+            commands: &[],
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.text.value.len()
     }
@@ -26,10 +33,46 @@ impl TypeWriterSection {
     }
 }
 
+impl From<&'static str> for TypeWriterSection {
+    fn from(value: &'static str) -> Self {
+        Self {
+            text: TwText::from(value),
+            commands: &[],
+        }
+    }
+}
+
+impl From<String> for TypeWriterSection {
+    fn from(value: String) -> Self {
+        Self {
+            text: TwText::from(value),
+            commands: &[],
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct TwText {
     pub value: Cow<'static, str>,
     pub modifiers: &'static [IndexedTextMod],
+}
+
+impl From<&'static str> for TwText {
+    fn from(value: &'static str) -> Self {
+        Self {
+            value: Cow::Borrowed(value),
+            modifiers: &[],
+        }
+    }
+}
+
+impl From<String> for TwText {
+    fn from(value: String) -> Self {
+        Self {
+            value: Cow::Owned(value),
+            modifiers: &[],
+        }
+    }
 }
 
 /// Renders a slice of a [`TypeWriterSection`].
