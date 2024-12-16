@@ -50,7 +50,7 @@
 //! ));
 //! ```
 
-use self::materials::ShakeMaterial;
+use self::materials::{ShakeMaterial, TextShaderPlugin};
 use crate::effect::UpdateTextEffects;
 use crate::materials::WaveMaterial;
 use crate::render::material::TextMaterial2dPlugin;
@@ -81,6 +81,7 @@ impl Plugin for PrettyTextPlugin {
             TextMesh2dPlugin,
             TextMaterial2dPlugin::<WaveMaterial>::default(),
             TextMaterial2dPlugin::<ShakeMaterial>::default(),
+            TextShaderPlugin,
         ))
         .insert_resource(GlyphMeshCache::default())
         .add_systems(

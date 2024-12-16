@@ -3,14 +3,6 @@ name = "bevy_pretty_text"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-name = "bevy_pretty_text"
-path = "src/lib.rs"
-
-[[bin]]
-name = "bevy_pretty_text"
-path = "src/bin.rs"
-
 [dependencies]
 bytemuck = "1.20.0"
 
