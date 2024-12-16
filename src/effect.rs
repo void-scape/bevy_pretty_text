@@ -1,7 +1,7 @@
 use crate::{
     materials::{ShakeMaterial, TextMaterialCache, WaveMaterial},
     render::{material::TextMeshMaterial2d, mesh::GlyphMeshCache},
-    type_writer::{GlyphIndex, TypeWriterSection},
+    type_writer::section::{GlyphIndex, TypeWriterSection},
 };
 use bevy::{
     prelude::*,

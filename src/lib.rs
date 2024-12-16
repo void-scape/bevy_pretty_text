@@ -1,17 +1,76 @@
+//! Bevy Pretty Text is a simple plugin for rendering and encoding text effects.
+//!
+//! Use the [`ScrollBuilder`](crate::prelude::ScrollBuilder) to dynamically
+//! construct scrolling text...
+//! ```
+//! #[derive(Component)]
+//! struct MyScroll;
+//!
+//! Scroll::from_section("I am repeating!".into())
+//!     .speed(1. / 5.) // 5 characters per second
+//!     .mode(ScrollMode::Repeating)
+//!     .spawn(&mut commands)
+//!     .insert(MyScroll);
+//! ```
+//!
+//! Or, simply add the [`Scroll`](crate::prelude::Scroll) component to any
+//! entity that contains a [`TypeWriterSection`](crate::prelude::TypeWriterSection).
+//! ```
+//! commands.spawn((
+//!     Scroll(1. / 2.),
+//!     Anchor::TopLeft,
+//!     TypeWriterSection::from("I am anchored!"),
+//! ));
+//! ```
+//!
+//! If you want to directly controll what is displayed, then use a
+//! [`SectionSlice`](crate::prelude::SectionSlice).
+//! ```
+//! commands.spawn((
+//!     SectionSlice::All,
+//!     TypeWriterSection::from("I am fully displayed!"),
+//! ));
+//! ```
+//!
+//! A `TypeWriterSection` is just a Text2d hierarchy. This means that you interact
+//! with it as a Text2d component, e.g.
+//! ```
+//! commands.spawn((
+//!     Scroll(1. / 2.),
+//!     s!("`012`[wave]3`456789|blue`"),
+//!     TextFont {
+//!         font_size: 10.,
+//!         font_smoothing: FontSmoothing::AntiAliased,
+//!         ..Default::default()
+//!     },
+//!     TextBounds {
+//!         width: Some(200.),
+//!         height: Some(40.),
+//!     },
+//! ));
+//! ```
+
 use self::materials::ShakeMaterial;
 use crate::effect::UpdateTextEffects;
-use crate::materials::{TextMaterialCache, WaveMaterial};
+use crate::materials::WaveMaterial;
 use crate::render::material::TextMaterial2dPlugin;
 use crate::render::mesh::{GlyphMeshCache, TextMesh2dPlugin};
 use crate::type_writer::TypeWriterPlugin;
 use bevy::prelude::*;
 use bevy::text::Update2dText;
-use type_writer::TypeWriterSection;
+
+pub extern crate macros;
+pub extern crate text;
 
 pub mod effect;
 pub mod materials;
 pub mod render;
 pub mod type_writer;
+
+pub mod prelude {
+    pub use crate::type_writer::{scroll::*, section::*};
+    pub use macros::s;
+}
 
 pub struct PrettyTextPlugin;
 
@@ -24,7 +83,6 @@ impl Plugin for PrettyTextPlugin {
             TextMaterial2dPlugin::<ShakeMaterial>::default(),
         ))
         .insert_resource(GlyphMeshCache::default())
-        .register_required_components::<TypeWriterSection, TextMaterialCache>()
         .add_systems(
             PostUpdate,
             (

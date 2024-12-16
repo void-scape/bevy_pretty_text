@@ -3,5 +3,12 @@ name = "text"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies.bevy]
-version = "0.15"
+[dependencies]
+bevy = "0.15"
+rand = "0.8"
+quote = { version = "1.0.37", default-features = false, optional = true }
+proc-macro2 = { version = "1.0.92", default-features = false, optional = true }
+winnow = "0.6.20"
+
+[features]
+proc-macro = ["dep:quote", "dep:proc-macro2"]

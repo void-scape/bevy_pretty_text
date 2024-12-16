@@ -3,6 +3,9 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{AsBindGroup, ShaderRef};
 use bevy::utils::hashbrown::HashMap;
 
+// TODO: cache based on atlases so materials can be shared across root entities.
+//
+// TODO: size and scale dependent modifier on effects.
 #[derive(Default, Component)]
 pub struct TextMaterialCache {
     wave: HashMap<Entity, Handle<WaveMaterial>>,

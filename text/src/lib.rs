@@ -1,20 +1,32 @@
-use bevy::prelude::*;
+use bevy::color::LinearRgba;
+use bevy::prelude::Component;
 use std::borrow::Cow;
 
-//mod parse;
+mod parse;
+pub use parse::parse_section;
 
-#[derive(Debug, Clone, Component)]
+#[derive(Debug, Default, Clone, Component)]
 pub struct TextSection {
     pub text: Text,
-    pub commands: &'static [IndexedCommand],
+    pub commands: Vec<IndexedCommand>,
 }
 
-impl From<&'static str> for TextSection {
-    fn from(value: &'static str) -> Self {
-        Self {
-            text: Text::from(value),
-            commands: &[],
+impl TextSection {
+    pub fn from_sections(sections: Vec<Self>) -> Self {
+        let mut slf = Self::default();
+        let mut index = 0;
+        for section in sections.into_iter() {
+            let section_len = section.text.value.len();
+            slf.text.append(section.text);
+            slf.commands
+                .extend(section.commands.into_iter().map(|mut c| {
+                    c.index += index;
+                    c
+                }));
+
+            index += section_len;
         }
+        slf
     }
 }
 
@@ -39,15 +51,26 @@ pub enum TypeWriterCommand {
 #[derive(Debug, Default, Clone)]
 pub struct Text {
     pub value: Cow<'static, str>,
-    pub modifiers: &'static [IndexedTextMod],
+    pub modifiers: Vec<IndexedTextMod>,
 }
 
 impl Text {
     pub fn from_value(value: String) -> Self {
         Self {
             value: Cow::Owned(value),
-            modifiers: &[],
+            modifiers: Vec::new(),
         }
+    }
+
+    pub fn append(&mut self, other: Self) {
+        let len = self.value.len();
+        self.value.to_mut().push_str(&other.value);
+        self.modifiers
+            .extend(other.modifiers.into_iter().map(|mut m| {
+                m.start += len;
+                m.end += len;
+                m
+            }));
     }
 }
 
@@ -55,7 +78,7 @@ impl From<String> for Text {
     fn from(value: String) -> Self {
         Self {
             value: Cow::Owned(value),
-            modifiers: &[],
+            modifiers: Vec::new(),
         }
     }
 }
@@ -64,7 +87,7 @@ impl From<&'static str> for Text {
     fn from(value: &'static str) -> Self {
         Self {
             value: Cow::Borrowed(value),
-            modifiers: &[],
+            modifiers: Vec::new(),
         }
     }
 }

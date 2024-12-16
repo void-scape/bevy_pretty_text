@@ -19,3 +19,6 @@ version = "0.15"
 
 [dependencies.text]
 path = "text"
+
+[dependencies.macros]
+path = "macros"
