@@ -106,6 +106,7 @@ pub fn update_section_slice(
     }
 }
 
+/// Sets the [`SectionSlice`] as a range from 0..`index`.
 #[derive(Debug, Default, Clone, Copy, Component)]
 pub struct TypeWriterIndex(pub usize);
 
@@ -116,7 +117,7 @@ pub fn update_section_slice_glyph_indices(
     mut commands: Commands,
     sections: Query<
         (Entity, &TypeWriterSection, &SectionSlice, Option<&Children>),
-        Changed<SectionSlice>,
+        Or<(Changed<SectionSlice>, Changed<TypeWriterSection>)>,
     >,
     fonts: Query<&TextFont>,
     glyphs: Query<(Entity, &GlyphIndex)>,

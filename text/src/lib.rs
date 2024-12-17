@@ -38,9 +38,9 @@ pub struct IndexedCommand {
 
 #[derive(Debug, Clone, Copy)]
 pub enum TypeWriterCommand {
-    Clear,
-    AwaitClear,
-    ClearAfter(f32),
+    //Clear,
+    //AwaitClear,
+    //ClearAfter(f32),
     /// Relative speed
     Speed(f32),
     Pause(f32),

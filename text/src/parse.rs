@@ -11,6 +11,8 @@ use winnow::{
 };
 
 // TODO: recursive effects, e.g. "``Hello|green`, World`[wave]"
+//
+// TODO: arguments for wave and shake
 pub fn parse_section(input: &str) -> PResult<TextSection> {
     let sections = parse_text(&mut Located::new(input), &mut 0)?;
     let mut section = TextSection::from_sections(sections);
@@ -109,9 +111,10 @@ fn parse_text(input: &mut Located<&str>, accumulator: &mut usize) -> PResult<Vec
         }
 
         if let Some(t) = peek(any::<_, ()>).parse_next(input).ok() {
+            let index = input.location() - *accumulator;
+
             match t {
                 '<' => {
-                    let index = input.location() - *accumulator;
                     let speed = parse_speed(input)?;
                     let indexed_command = IndexedCommand {
                         index,
@@ -129,7 +132,6 @@ fn parse_text(input: &mut Located<&str>, accumulator: &mut usize) -> PResult<Vec
                     }
                 }
                 '[' => {
-                    let index = input.location() - *accumulator;
                     let duration = parse_pause(input)?;
                     let first = result.first_mut().unwrap();
                     first.commands.push(IndexedCommand {
@@ -139,10 +141,9 @@ fn parse_text(input: &mut Located<&str>, accumulator: &mut usize) -> PResult<Vec
                     *accumulator += input.location() - *accumulator - index;
                 }
                 '`' => {
-                    let index = input.location() - *accumulator;
                     let section = TextSection::from(parse_ticks.parse_next(input)?);
                     *accumulator +=
-                        input.location() - *accumulator - index - section.text.value.len() + 1;
+                        input.location() - *accumulator - index - section.text.value.len();
                     result.push(section);
                 }
                 '{' => {
@@ -253,9 +254,9 @@ impl quote::ToTokens for TypeWriterCommand {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         tokens.append_all(quote! { bevy_pretty_text::text::TypeWriterCommand:: });
         tokens.append_all(match self {
-            TypeWriterCommand::Clear => quote! { Clear },
-            TypeWriterCommand::AwaitClear => quote! { AwaitClear },
-            TypeWriterCommand::ClearAfter(d) => quote! { ClearAfter(#d) },
+            //TypeWriterCommand::Clear => quote! { Clear },
+            //TypeWriterCommand::AwaitClear => quote! { AwaitClear },
+            //TypeWriterCommand::ClearAfter(d) => quote! { ClearAfter(#d) },
             TypeWriterCommand::Speed(s) => quote! { Speed(#s) },
             TypeWriterCommand::Pause(d) => quote! { Pause(#d) },
             TypeWriterCommand::Delete(n) => quote! { Delete(#n) },

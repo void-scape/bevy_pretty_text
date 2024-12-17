@@ -77,7 +77,7 @@ pub mod render;
 pub mod type_writer;
 
 pub mod prelude {
-    pub use crate::type_writer::{scroll::*, section::*};
+    pub use crate::type_writer::{clear::*, scroll::*, section::*};
     pub use crate::PrettyTextPlugin;
     pub use macros::s;
 }

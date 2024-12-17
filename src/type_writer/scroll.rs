@@ -1,55 +1,21 @@
 use super::section::*;
+use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
 use std::time::Duration;
+use text::TypeWriterCommand;
 
 /// Scrolls through a [`TypeWriterSection`] with a specified `character per second` speed.
 #[derive(Component)]
 #[require(TypeWriterIndex, ScrollMode, ScrollTimer)]
 pub struct Scroll(pub f32);
 
-#[derive(Component)]
-pub struct ScrollBuilder {
-    speed: f32,
-    mode: ScrollMode,
-    section: TypeWriterSection,
+impl Scroll {
+    pub const DEFAULT_SPEED: f32 = 1. / 20.;
 }
 
-impl ScrollBuilder {
-    pub fn from_text(text: impl Into<TwText>) -> ScrollBuilder {
-        Self::default().section(TypeWriterSection::new(text.into()))
-    }
-
-    pub fn from_section(section: TypeWriterSection) -> ScrollBuilder {
-        Self::default().section(section)
-    }
-
-    pub fn section(mut self, section: TypeWriterSection) -> Self {
-        self.section = section;
-        self
-    }
-
-    pub fn speed(mut self, speed: f32) -> Self {
-        self.speed = speed;
-        self
-    }
-
-    pub fn mode(mut self, mode: ScrollMode) -> Self {
-        self.mode = mode;
-        self
-    }
-
-    pub fn spawn<'a>(self, commands: &'a mut Commands) -> EntityCommands<'a> {
-        commands.spawn((Scroll(self.speed), self.mode, self.section))
-    }
-}
-
-impl Default for ScrollBuilder {
+impl Default for Scroll {
     fn default() -> Self {
-        Self {
-            section: Default::default(),
-            mode: Default::default(),
-            speed: 1. / 20.,
-        }
+        Self(Self::DEFAULT_SPEED)
     }
 }
 
@@ -80,7 +46,7 @@ impl ScrollTimer {
 
 pub fn insert_scroll_timers(
     mut commands: Commands,
-    scroll_query: Query<(Entity, &Scroll), (Added<Scroll>, With<TypeWriterSection>)>,
+    scroll_query: Query<(Entity, &Scroll), Changed<Scroll>>,
 ) {
     for (entity, scroll) in scroll_query.iter() {
         commands.entity(entity).insert(ScrollTimer::new(scroll.0));
@@ -90,15 +56,32 @@ pub fn insert_scroll_timers(
 #[derive(Debug, Clone, Copy, Event)]
 pub struct ScrollTimeout(Entity);
 
+#[derive(Component)]
+pub struct Paused(Timer);
+
 pub fn update_scroll_timer(
-    time: Res<Time>,
-    mut timers: Query<(Entity, &mut ScrollTimer)>,
+    mut commands: Commands,
     mut writer: EventWriter<ScrollTimeout>,
+    time: Res<Time>,
+    mut timers: Query<(Entity, &mut ScrollTimer), Without<Paused>>,
+    mut paused_timers: Query<(Entity, &mut Paused)>,
 ) {
     for (entity, mut timer) in timers.iter_mut() {
         timer.0.tick(time.delta());
         if timer.0.just_finished() {
             writer.send(ScrollTimeout(entity));
+        }
+    }
+
+    for (entity, mut paused) in paused_timers.iter_mut() {
+        paused.0.tick(time.delta());
+        if paused.0.finished() {
+            commands
+                .entity(entity)
+                .remove::<Paused>()
+                // Paused scrollers will always be ready to increment
+                // immediately after unpausing
+                .insert(IncrementIndex);
         }
     }
 }
@@ -117,26 +100,88 @@ pub fn insert_section_slices(
     }
 }
 
-pub fn scroll_text(
+#[derive(Component)]
+pub struct IncrementIndex;
+
+pub fn evaluate_scroll_timeout(
+    mut commands: Commands,
     mut reader: EventReader<ScrollTimeout>,
-    mut text_query: Query<(&mut TypeWriterIndex, &TypeWriterSection, &ScrollMode)>,
+    text_query: Query<(Entity, &TypeWriterSection, &TypeWriterIndex)>,
 ) {
     for event in reader.read() {
-        if let Ok((mut index, section, mode)) = text_query.get_mut(event.0) {
-            match mode {
-                ScrollMode::Once => {
-                    if index.0 < section.len() {
-                        index.0 += 1;
+        if let Ok((entity, section, index)) = text_query.get(event.0) {
+            let mut entity = commands.entity(entity);
+            let mut increment = true;
+
+            for triggered in section.commands.iter().filter(|c| c.index == index.0) {
+                match triggered.command {
+                    TypeWriterCommand::Speed(s) => {
+                        entity.insert(Scroll(s));
                     }
-                }
-                ScrollMode::Repeating => {
-                    if index.0 < section.len() {
-                        index.0 += 1;
-                    } else {
-                        index.0 = 0;
+                    TypeWriterCommand::Pause(d) => {
+                        entity.insert(Paused(Timer::from_seconds(d, TimerMode::Once)));
+                        increment = false;
+                    }
+                    TypeWriterCommand::Delete(_) => {
+                        unimplemented!()
                     }
                 }
             }
+
+            if increment {
+                entity.insert(IncrementIndex);
+            }
         }
+    }
+}
+
+#[derive(Component)]
+pub struct ScrollJustFinished;
+
+pub fn scroll_text(
+    mut commands: Commands,
+    mut reader: EventReader<ScrollTimeout>,
+    mut text_query: Query<
+        (
+            Entity,
+            &mut TypeWriterIndex,
+            &TypeWriterSection,
+            &ScrollMode,
+        ),
+        With<IncrementIndex>,
+    >,
+) {
+    for event in reader.read() {
+        if let Ok((entity, mut index, section, mode)) = text_query.get_mut(event.0) {
+            let mut entity = commands.entity(entity);
+
+            let len = section.len();
+            if index.0 < len {
+                index.0 += 1;
+
+                if index.0 == len {
+                    entity.insert(ScrollJustFinished);
+                }
+            } else {
+                if *mode == ScrollMode::Repeating {
+                    index.0 = 0;
+                }
+            }
+
+            entity.remove::<IncrementIndex>();
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct OnScrollEnd(pub SystemId);
+
+pub fn trigger_callback(
+    mut commands: Commands,
+    finished_query: Query<(Entity, &OnScrollEnd), With<ScrollJustFinished>>,
+) {
+    for (entity, on_end) in finished_query.iter() {
+        commands.run_system(on_end.0);
+        commands.entity(entity).remove::<ScrollJustFinished>();
     }
 }
