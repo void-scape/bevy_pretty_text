@@ -1,4 +1,4 @@
-//! Bevy Pretty Text is a simple plugin for rendering and encoding text effects.
+//! Bevy Pretty Text is a simple plugin for rendering and encoding text effects.::
 //!
 //! Use the [`ScrollBuilder`](crate::prelude::ScrollBuilder) to dynamically
 //! construct scrolling text...
@@ -68,7 +68,7 @@ use crate::type_writer::TypeWriterPlugin;
 use bevy::prelude::*;
 use bevy::text::Update2dText;
 
-pub extern crate macros;
+pub extern crate bevy_pretty_macro;
 pub extern crate text;
 
 pub mod effect;
@@ -79,7 +79,7 @@ pub mod type_writer;
 pub mod prelude {
     pub use crate::type_writer::{clear::*, scroll::*, section::*};
     pub use crate::PrettyTextPlugin;
-    pub use macros::s;
+    pub use bevy_pretty_macro::s;
 }
 
 pub struct PrettyTextPlugin;
