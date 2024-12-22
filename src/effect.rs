@@ -1,7 +1,7 @@
 use crate::{
     materials::{ShakeMaterial, TextMaterialCache, WaveMaterial},
     render::{material::TextMeshMaterial2d, mesh::GlyphMeshCache},
-    type_writer::section::{GlyphIndex, TypeWriterSection},
+    type_writer::section::TypeWriterSection,
 };
 use bevy::{
     prelude::*,
@@ -10,9 +10,6 @@ use bevy::{
     window::PrimaryWindow,
 };
 use text::TextMod;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
-pub struct UpdateTextEffects;
 
 /// Generated for a an entity that contains a [`TypeWriterSection`] and a non empty [`TextLayoutInfo`].
 ///
@@ -32,6 +29,9 @@ pub struct ExtractedGlyphs {
     pub text_mod: TextMod,
     pub root: Entity,
 }
+
+#[derive(Debug, Clone, Copy, Component)]
+pub struct GlyphIndex(pub usize);
 
 pub fn compute_info(
     mut commands: Commands,

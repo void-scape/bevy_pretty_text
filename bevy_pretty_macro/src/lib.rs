@@ -1,6 +1,8 @@
 use proc_macro::TokenStream;
 use quote::ToTokens;
 use syn::parse::Parse;
+use syn::spanned::Spanned;
+use text::TypeWriterCommand;
 
 #[proc_macro]
 pub fn s(input: TokenStream) -> TokenStream {
@@ -10,36 +12,50 @@ pub fn s(input: TokenStream) -> TokenStream {
 }
 
 fn section(input: TokenStream) -> syn::Result<proc_macro2::TokenStream> {
-    let Dialogue { string, .. } = syn::parse(input)?;
+    let Dialogue {
+        string,
+        expressions,
+    } = syn::parse(input)?;
+
+    let closures = expressions
+        .iter()
+        .filter_map(|e| parse_closure(e).expect("invalid closure"))
+        .collect::<Vec<_>>();
 
     let input = string.value();
-
-    text::parse_section(&input)
-        .map(|s| s.into_token_stream())
-        .map_err(|e| syn::Error::new(string.span(), e.to_string()))
+    text::parse_text(&mut input.as_str(), &mut Default::default())
+        .map(|t| {
+            t.token_stream(&closures).ok_or_else(|| {
+                syn::Error::new(
+                    string.span(),
+                    String::from("Wrong number of closures supplied"),
+                )
+            })
+        })
+        .map_err(|e| syn::Error::new(string.span(), e.to_string()))?
 }
 
-// fn parse_closure(expr: &syn::Expr) -> syn::Result<Option<(&syn::Ident, &syn::Expr)>> {
-//     match expr {
-//         syn::Expr::Closure(closure) => {
-//             if closure.inputs.len() != 1 {
-//                 return Err(syn::Error::new(
-//                     closure.inputs.span(),
-//                     "Expected a closure with exactly one input",
-//                 ));
-//             }
-//
-//             let name = closure.inputs.iter().next().unwrap();
-//             let name = match name {
-//                 syn::Pat::Ident(ident) => &ident.ident,
-//                 n => return Err(syn::Error::new(n.span(), "Expected a simple identifier")),
-//             };
-//
-//             Ok(Some((name, closure.body.as_ref())))
-//         }
-//         _ => Ok(None),
-//     }
-// }
+fn parse_closure(expr: &syn::Expr) -> syn::Result<Option<(&syn::Ident, &syn::Expr)>> {
+    match expr {
+        syn::Expr::Closure(closure) => {
+            if closure.inputs.len() != 1 {
+                return Err(syn::Error::new(
+                    closure.inputs.span(),
+                    "Expected a closure with exactly one input",
+                ));
+            }
+
+            let name = closure.inputs.iter().next().unwrap();
+            let name = match name {
+                syn::Pat::Ident(ident) => &ident.ident,
+                n => return Err(syn::Error::new(n.span(), "Expected a simple identifier")),
+            };
+
+            Ok(Some((name, closure.body.as_ref())))
+        }
+        _ => Ok(None),
+    }
+}
 
 struct Dialogue {
     string: syn::LitStr,

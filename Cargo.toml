@@ -4,10 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+bevy = "0.15"
+leafwing-input-manager = "0.16"
 bytemuck = "1.20.0"
-
-[dependencies.bevy]
-version = "0.15"
 
 [dependencies.text]
 path = "text"

@@ -3725,6 +3725,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rand",
+ "syn",
  "winnow",
 ]
 

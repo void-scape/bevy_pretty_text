@@ -1,10 +1,9 @@
-use crate::effect::UpdateGlyphPosition;
+use crate::effect::{GlyphIndex, UpdateGlyphPosition};
 use crate::materials::TextMaterialCache;
 use bevy::prelude::*;
-use bevy::text::{TextBounds, TextLayoutInfo};
 use std::borrow::Cow;
 use std::ops::Range;
-use text::IndexedTextMod;
+use text::{IndexedTextMod, TypeWriterCommand};
 
 /// Primitive for describing how text should be rendered.
 ///
@@ -13,14 +12,16 @@ use text::IndexedTextMod;
 #[require(Text2d, TextMaterialCache)]
 pub struct TypeWriterSection {
     pub text: TwText,
-    pub commands: &'static [text::IndexedCommand],
+    pub commands: Cow<'static, [text::IndexedCommand]>,
+    pub end: Option<TypeWriterCommand>,
 }
 
 impl TypeWriterSection {
     pub fn new(text: TwText) -> Self {
         Self {
             text,
-            commands: &[],
+            commands: Cow::Borrowed(&[]),
+            end: Some(TypeWriterCommand::AwaitClear),
         }
     }
 
@@ -31,13 +32,40 @@ impl TypeWriterSection {
     pub fn is_empty(&self) -> bool {
         self.text.value.is_empty()
     }
+
+    pub fn join(&mut self, other: &Self) {
+        self.end = other.end;
+        let len = self.text.value.len();
+        if !other.commands.is_empty() {
+            self.commands
+                .to_mut()
+                .extend(other.commands.iter().cloned().map(|mut c| {
+                    c.index += len;
+                    c
+                }));
+        }
+        if !other.text.modifiers.is_empty() {
+            self.text
+                .modifiers
+                .to_mut()
+                .extend(other.text.modifiers.iter().cloned().map(|mut m| {
+                    m.start += len;
+                    m.end += len;
+                    m
+                }));
+        }
+        if !other.text.value.is_empty() {
+            self.text.value.to_mut().push_str(other.text.value.as_ref());
+        }
+    }
 }
 
 impl From<&'static str> for TypeWriterSection {
     fn from(value: &'static str) -> Self {
         Self {
             text: TwText::from(value),
-            commands: &[],
+            commands: Cow::Borrowed(&[]),
+            end: Some(TypeWriterCommand::AwaitClear),
         }
     }
 }
@@ -46,7 +74,8 @@ impl From<String> for TypeWriterSection {
     fn from(value: String) -> Self {
         Self {
             text: TwText::from(value),
-            commands: &[],
+            commands: Cow::Borrowed(&[]),
+            end: Some(TypeWriterCommand::AwaitClear),
         }
     }
 }
@@ -54,14 +83,14 @@ impl From<String> for TypeWriterSection {
 #[derive(Debug, Default, Clone)]
 pub struct TwText {
     pub value: Cow<'static, str>,
-    pub modifiers: &'static [IndexedTextMod],
+    pub modifiers: Cow<'static, [IndexedTextMod]>,
 }
 
 impl From<&'static str> for TwText {
     fn from(value: &'static str) -> Self {
         Self {
             value: Cow::Borrowed(value),
-            modifiers: &[],
+            modifiers: Cow::Borrowed(&[]),
         }
     }
 }
@@ -70,7 +99,7 @@ impl From<String> for TwText {
     fn from(value: String) -> Self {
         Self {
             value: Cow::Owned(value),
-            modifiers: &[],
+            modifiers: Cow::Borrowed(&[]),
         }
     }
 }
@@ -109,9 +138,6 @@ pub fn update_section_slice(
 /// Sets the [`SectionSlice`] as a range from 0..`index`.
 #[derive(Debug, Default, Clone, Copy, Component)]
 pub struct TypeWriterIndex(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
-pub struct GlyphIndex(pub usize);
 
 pub fn update_section_slice_glyph_indices(
     mut commands: Commands,
@@ -236,17 +262,5 @@ pub fn update_section_slice_glyph_indices(
                 TextSpan(section.text.value[current_index..range.end].to_string()),
             ));
         }
-    }
-}
-
-#[allow(unused)]
-pub fn debug_sections(
-    sections: Query<
-        (&TextLayoutInfo, &TextBounds, &TextFont),
-        (With<TypeWriterSection>, Changed<TextLayoutInfo>),
-    >,
-) {
-    for section in sections.iter() {
-        //println!("{section:#?}");
     }
 }

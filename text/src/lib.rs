@@ -3,12 +3,13 @@ use bevy::prelude::Component;
 use std::borrow::Cow;
 
 mod parse;
-pub use parse::parse_section;
+pub use parse::*;
 
 #[derive(Debug, Default, Clone, Component)]
 pub struct TextSection {
     pub text: Text,
     pub commands: Vec<IndexedCommand>,
+    pub end: Option<TypeWriterCommand>,
 }
 
 impl TextSection {
@@ -28,6 +29,58 @@ impl TextSection {
         }
         slf
     }
+
+    pub fn deduplicate_spaces(&mut self) {
+        let mut indices = Vec::new();
+        let mut prev_space = false;
+
+        for (i, char) in self.text.value.chars().enumerate() {
+            let is_space = char == ' ';
+            if is_space && prev_space {
+                indices.push(i);
+            }
+            prev_space = is_space;
+        }
+
+        for index in indices.iter().rev() {
+            self.text.value.to_mut().remove(*index);
+            for text_mod in self.text.modifiers.iter_mut() {
+                if text_mod.start >= *index {
+                    text_mod.start = text_mod.start.saturating_sub(1);
+                }
+
+                if text_mod.end >= *index {
+                    text_mod.end = text_mod.end.saturating_sub(1);
+                }
+            }
+
+            for command in self.commands.iter_mut() {
+                if command.index >= *index {
+                    command.index = command.index.saturating_sub(1);
+                }
+            }
+        }
+    }
+}
+
+impl From<String> for TextSection {
+    fn from(value: String) -> Self {
+        Self {
+            text: Text::from(value),
+            commands: Vec::new(),
+            end: None,
+        }
+    }
+}
+
+impl From<Text> for TextSection {
+    fn from(value: Text) -> Self {
+        Self {
+            text: value,
+            commands: Vec::new(),
+            end: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -36,10 +89,10 @@ pub struct IndexedCommand {
     pub command: TypeWriterCommand,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TypeWriterCommand {
     //Clear,
-    //AwaitClear,
+    AwaitClear,
     //ClearAfter(f32),
     /// Relative speed
     Speed(f32),
@@ -93,7 +146,7 @@ impl From<&'static str> for Text {
 }
 
 /// Text modifier that applies to a [`Text`] section.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct IndexedTextMod {
     pub start: usize,
     /// Non inclusive

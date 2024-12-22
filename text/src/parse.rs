@@ -1,53 +1,23 @@
 use super::TextMod;
-use crate::{IndexedCommand, IndexedTextMod, Text, TextSection, TypeWriterCommand};
+use crate::TypeWriterCommand;
 use bevy::color::LinearRgba;
-use std::borrow::Cow;
+use std::fmt::Debug;
 use winnow::{
     ascii::float,
     combinator::{alt, delimited, opt, peek, terminated},
-    stream::Location,
     token::{any, take_till, take_while},
-    Located, PResult, Parser,
+    PResult, Parser,
 };
 
-// TODO: recursive effects, e.g. "``Hello|green`, World`[wave]"
-//
-// TODO: arguments for wave and shake
-pub fn parse_section(input: &str) -> PResult<TextSection> {
-    let sections = parse_text(&mut Located::new(input), &mut 0)?;
-    let mut section = TextSection::from_sections(sections);
-    process_section(&mut section);
-
-    Ok(section)
-}
-
-impl From<String> for TextSection {
-    fn from(value: String) -> Self {
-        Self {
-            text: Text::from(value),
-            commands: Vec::new(),
-        }
-    }
-}
-
-impl From<Text> for TextSection {
-    fn from(value: Text) -> Self {
-        Self {
-            text: value,
-            commands: Vec::new(),
-        }
-    }
-}
-
-fn parse_speed(input: &mut Located<&str>) -> PResult<f32> {
+fn parse_speed(input: &mut &str) -> PResult<f32> {
     delimited('<', float, '>').parse_next(input)
 }
 
-fn parse_pause(input: &mut Located<&str>) -> PResult<f32> {
+fn parse_pause(input: &mut &str) -> PResult<f32> {
     delimited('[', float, ']').parse_next(input)
 }
 
-fn parse_effect(input: &mut Located<&str>) -> PResult<TextMod> {
+fn parse_effect(input: &mut &str) -> PResult<TextMod> {
     alt((
         "wave".map(|_| TextMod::Wave),
         "shake".map(|_| TextMod::Shake(0.5)),
@@ -55,7 +25,7 @@ fn parse_effect(input: &mut Located<&str>) -> PResult<TextMod> {
     .parse_next(input)
 }
 
-fn parse_color(input: &mut Located<&str>) -> PResult<TextMod> {
+fn parse_color(input: &mut &str) -> PResult<TextMod> {
     alt((
         "red".map(|_| TextMod::Color(LinearRgba::RED)),
         "green".map(|_| TextMod::Color(LinearRgba::GREEN)),
@@ -64,92 +34,135 @@ fn parse_color(input: &mut Located<&str>) -> PResult<TextMod> {
     .parse_next(input)
 }
 
-fn parse_ticks(input: &mut Located<&str>) -> PResult<Text> {
+fn parse_ticks(input: &mut &str) -> PResult<Token> {
     '`'.parse_next(input)?;
     let text = take_till(0.., ['|', '`']).parse_next(input)?;
-
-    let color = match any.parse_next(input)? {
-        '|' => {
-            let color = terminated(parse_color, '`').parse_next(input)?;
-            Some(color)
-        }
-        _ => None,
-    };
-
-    let effect = opt(delimited('[', parse_effect, ']')).parse_next(input)?;
-
     let mut modifiers = Vec::new();
 
-    if let Some(color) = color {
-        modifiers.push(IndexedTextMod {
-            start: 0,
-            end: text.len(),
-            text_mod: color,
-        })
+    match any.parse_next(input)? {
+        '|' => {
+            let color = terminated(parse_color, '`').parse_next(input)?;
+            modifiers.push(color);
+        }
+        _ => {}
     }
 
-    if let Some(effect) = effect {
-        modifiers.push(IndexedTextMod {
-            start: 0,
-            end: text.len(),
-            text_mod: effect,
-        })
+    if let Some(effect) = opt(delimited('[', parse_effect, ']')).parse_next(input)? {
+        modifiers.push(effect);
     }
 
-    Ok(Text {
-        value: Cow::Owned(text.into()),
+    Ok(Token::Special {
+        value: text.to_owned(),
         modifiers,
     })
 }
 
-fn parse_text(input: &mut Located<&str>, accumulator: &mut usize) -> PResult<Vec<TextSection>> {
-    let mut result = Vec::new();
+fn parse_normal<'a>(input: &mut &'a str) -> PResult<&'a str> {
+    take_while(0.., |c| !['[', '<', '`', '{', '}'].contains(&c)).parse_next(input)
+}
+
+#[derive(Debug)]
+pub enum Token {
+    Normal(String),
+    Special {
+        value: String,
+        modifiers: Vec<TextMod>,
+    },
+    Command(TypeWriterCommand),
+    Section(ParsedSection),
+}
+
+impl Token {
+    pub fn append_command(&mut self, command: TypeWriterCommand) {
+        if let Self::Section(s) = self {
+            s.tokens.push(Self::Command(command));
+        }
+    }
+}
+
+impl From<String> for Token {
+    fn from(value: String) -> Self {
+        Self::Normal(value)
+    }
+}
+
+impl From<&'static str> for Token {
+    fn from(value: &'static str) -> Self {
+        Self::Normal(value.to_owned())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ParsedSection {
+    tokens: Vec<Token>,
+    closure_info: Option<ClosureInfo>,
+}
+
+impl ParsedSection {
+    pub fn new(tokens: Vec<Token>, closure_info: ClosureInfo) -> Self {
+        if closure_info.depth == 0 {
+            Self {
+                tokens,
+                closure_info: None,
+            }
+        } else {
+            Self {
+                tokens,
+                closure_info: Some(closure_info),
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ClosureInfo {
+    closure_index: usize,
+    depth: usize,
+}
+
+impl ClosureInfo {
+    fn from_context(value: &ClosureContext) -> Self {
+        Self {
+            closure_index: value.visited,
+            depth: value.depth,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ClosureContext {
+    visited: usize,
+    depth: usize,
+}
+
+pub fn parse_text(input: &mut &str, closure_context: &mut ClosureContext) -> PResult<Token> {
+    let mut tokens = Vec::new();
+    let info = ClosureInfo::from_context(closure_context);
 
     while let Ok(text) = parse_normal(input) {
         if !text.is_empty() {
-            result.push(TextSection::from(text.to_owned()));
+            tokens.push(Token::Normal(text.to_owned()));
         }
 
         if let Some(t) = peek(any::<_, ()>).parse_next(input).ok() {
-            let index = input.location() - *accumulator;
-
             match t {
                 '<' => {
                     let speed = parse_speed(input)?;
-                    let indexed_command = IndexedCommand {
-                        index,
-                        command: TypeWriterCommand::Speed(speed),
-                    };
-                    *accumulator += input.location() - *accumulator - index;
-
-                    if let Some(first) = result.first_mut() {
-                        first.commands.push(indexed_command);
-                    } else {
-                        result.push(TextSection {
-                            text: Default::default(),
-                            commands: vec![indexed_command],
-                        })
-                    }
+                    tokens.push(Token::Command(TypeWriterCommand::Speed(speed)));
                 }
                 '[' => {
                     let duration = parse_pause(input)?;
-                    let first = result.first_mut().unwrap();
-                    first.commands.push(IndexedCommand {
-                        index,
-                        command: TypeWriterCommand::Pause(duration),
-                    });
-                    *accumulator += input.location() - *accumulator - index;
+                    tokens.push(Token::Command(TypeWriterCommand::Pause(duration)));
                 }
                 '`' => {
-                    let section = TextSection::from(parse_ticks.parse_next(input)?);
-                    *accumulator +=
-                        input.location() - *accumulator - index - section.text.value.len();
-                    result.push(section);
+                    tokens.push(parse_ticks(input)?);
                 }
                 '{' => {
-                    unimplemented!();
-                    //any.parse_next(input)?;
-                    //result.extend(parse_text(input, accumulator)?);
+                    any.parse_next(input)?;
+                    closure_context.depth += 1;
+                    closure_context.visited += 1;
+                    tokens.push(parse_text(input, closure_context)?);
+                    closure_context.depth -= 1;
                 }
                 _ => {
                     any.parse_next(input)?;
@@ -161,50 +174,131 @@ fn parse_text(input: &mut Located<&str>, accumulator: &mut usize) -> PResult<Vec
         }
     }
 
-    Ok(result)
+    Ok(Token::Section(ParsedSection::new(tokens, info)))
 }
 
-fn process_section(section: &mut TextSection) {
-    let mut prev_was_space = false;
-    let mut remove_indicies = Vec::with_capacity(16);
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    for (i, char) in section.text.value.chars().enumerate() {
-        let is_space = char == ' ';
-        if prev_was_space && is_space {
-            remove_indicies.push(i);
-        }
-        prev_was_space = is_space;
+    #[test]
+    fn simple() {
+        //let mut text = "<0.3> Hello, <0.5> World! {{My} `name|green`[shake]} is `Nic|red`[wave]";
+        let mut text = "Hello, World!";
+        let output = parse_text(&mut text, &mut ClosureContext::default()).unwrap();
     }
-
-    if section.text.value.chars().next().is_some_and(|c| c == ' ') && !remove_indicies.contains(&0)
-    {
-        remove_indicies.insert(0, 0);
-    }
-
-    for index in remove_indicies.iter().rev() {
-        section.text.value.to_mut().remove(*index);
-
-        for modifier in section.text.modifiers.iter_mut() {
-            if modifier.start >= *index {
-                modifier.start = modifier.start.saturating_sub(1);
-                modifier.end = modifier.end.saturating_sub(1);
-            }
-        }
-
-        for command in section.commands.iter_mut() {
-            if command.index >= *index {
-                command.index = command.index.saturating_sub(1);
-            }
-        }
-    }
-}
-
-fn parse_normal<'a>(input: &mut Located<&'a str>) -> PResult<&'a str> {
-    take_while(0.., |c| !['[', '<', '`', '{', '}'].contains(&c)).parse_next(input)
 }
 
 #[cfg(feature = "proc-macro")]
+use crate::{IndexedCommand, IndexedTextMod, Text, TextSection};
+#[cfg(feature = "proc-macro")]
 use quote::{quote, TokenStreamExt};
+#[cfg(feature = "proc-macro")]
+use std::borrow::Cow;
+
+#[cfg(feature = "proc-macro")]
+impl Token {
+    pub fn token_stream(
+        &self,
+        closures: &[(&syn::Ident, &syn::Expr)],
+    ) -> Option<proc_macro2::TokenStream> {
+        token_to_tokens(self, &mut 0, &mut Vec::new(), closures)
+    }
+}
+
+#[cfg(feature = "proc-macro")]
+fn token_to_tokens(
+    token: &Token,
+    index: &mut usize,
+    sub_tokens: &mut Vec<proc_macro2::TokenStream>,
+    closures: &[(&syn::Ident, &syn::Expr)],
+) -> Option<proc_macro2::TokenStream> {
+    match token {
+        Token::Section(section) => {
+            let mut stream = proc_macro2::TokenStream::new();
+            if section.tokens.is_empty() {
+                return Some(stream);
+            }
+
+            let mut sections = vec![TextSection::default()];
+            for token in section.tokens.iter() {
+                match token {
+                    Token::Section(_) => {
+                        if !sections.is_empty() {
+                            let mut new_section =
+                                TextSection::from_sections(sections.drain(..).collect());
+                            new_section.deduplicate_spaces();
+
+                            if let Some(closure_info) = &section.closure_info {
+                                match closures.get(&closure_info.closure_index - 1) {
+                                    Some((ident, body)) => {
+                                        sub_tokens
+                                            .push(quote! { { let #ident = #new_section; #body } });
+                                    }
+                                    None => return None,
+                                }
+                            } else {
+                                sub_tokens.push(quote! { #new_section });
+                            }
+                        }
+
+                        if token_to_tokens(token, index, sub_tokens, closures).is_none() {
+                            return None;
+                        }
+                    }
+                    Token::Normal(str) => {
+                        *index += str.len();
+                        sections.push(TextSection::from(str.clone()));
+                    }
+                    Token::Command(command) => {
+                        let last = sections.last_mut().unwrap();
+                        last.commands.push(IndexedCommand {
+                            index: last.text.value.len(),
+                            command: *command,
+                        })
+                    }
+                    Token::Special { value, modifiers } => sections.push(TextSection::from(Text {
+                        value: Cow::Owned(value.clone()),
+                        modifiers: modifiers
+                            .iter()
+                            .map(|m| IndexedTextMod {
+                                start: 0,
+                                end: value.len(),
+                                text_mod: *m,
+                            })
+                            .collect(),
+                    })),
+                }
+            }
+
+            if !sections.is_empty() {
+                let mut new_section = TextSection::from_sections(sections);
+
+                // last section
+                if section.closure_info.is_none() {
+                    new_section.end = Some(TypeWriterCommand::AwaitClear);
+                }
+
+                new_section.deduplicate_spaces();
+
+                if let Some(closure_info) = &section.closure_info {
+                    match closures.get(&closure_info.closure_index - 1) {
+                        Some((ident, body)) => {
+                            sub_tokens.push(quote! { { let #ident = #new_section; #body } });
+                        }
+                        None => return None,
+                    }
+                } else {
+                    sub_tokens.push(quote! { #new_section });
+                }
+            }
+
+            stream.append_all(quote! { (#(#sub_tokens),*) });
+            Some(stream)
+        }
+        _ => unreachable!(),
+    }
+}
 
 #[cfg(feature = "proc-macro")]
 impl quote::ToTokens for &'_ TextMod {
@@ -255,7 +349,7 @@ impl quote::ToTokens for TypeWriterCommand {
         tokens.append_all(quote! { bevy_pretty_text::text::TypeWriterCommand:: });
         tokens.append_all(match self {
             //TypeWriterCommand::Clear => quote! { Clear },
-            //TypeWriterCommand::AwaitClear => quote! { AwaitClear },
+            TypeWriterCommand::AwaitClear => quote! { AwaitClear },
             //TypeWriterCommand::ClearAfter(d) => quote! { ClearAfter(#d) },
             TypeWriterCommand::Speed(s) => quote! { Speed(#s) },
             TypeWriterCommand::Pause(d) => quote! { Pause(#d) },
@@ -295,66 +389,20 @@ impl quote::ToTokens for TextSection {
                 #c
             }
         });
+        let end = match self.end {
+            Some(end) => quote! { Some(#end) },
+            None => quote! { None },
+        };
 
         tokens.append_all(quote! {
             bevy_pretty_text::type_writer::section::TypeWriterSection {
                 text: bevy_pretty_text::type_writer::section::TwText {
                     value: std::borrow::Cow::Borrowed(#text),
-                    modifiers: &[#(#mods),*],
+                    modifiers: std::borrow::Cow::Borrowed(&[#(#mods),*]),
                 },
-                commands: &[#(#commands),*],
+                commands: std::borrow::Cow::Borrowed(&[#(#commands),*]),
+                end: #end
             }
         });
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_simple() {
-        let input = "Hello, world!";
-        let output = parse_section(input).unwrap();
-
-        assert!(output.text.modifiers.is_empty());
-        assert!(output.commands.is_empty());
-        assert_eq!(input.len(), output.text.value.len());
-    }
-
-    #[test]
-    fn test_effects_and_commands() {
-        let input = "<0.3> Hello, <0.5> `world|red`[wave]!";
-        let output = parse_section(input).unwrap();
-
-        assert_eq!("Hello, world!", &output.text.value);
-        assert!(matches!(
-            output.text.modifiers.as_slice(),
-            &[
-                IndexedTextMod {
-                    start: 7,
-                    end: 12,
-                    text_mod: TextMod::Color(LinearRgba::RED),
-                },
-                IndexedTextMod {
-                    start: 7,
-                    end: 12,
-                    text_mod: TextMod::Wave,
-                },
-            ]
-        ));
-        assert!(matches!(
-            output.commands.as_slice(),
-            &[
-                IndexedCommand {
-                    index: 0,
-                    command: TypeWriterCommand::Speed(0.3),
-                },
-                IndexedCommand {
-                    index: 6,
-                    command: TypeWriterCommand::Speed(0.5),
-                }
-            ]
-        ));
     }
 }
