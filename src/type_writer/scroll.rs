@@ -218,16 +218,69 @@ impl ScrollSfx for SfxWord {}
 impl ScrollSfx for SfxRate {}
 
 #[derive(Clone, Component)]
-pub struct SfxChar(pub Handle<AudioSource>);
+pub struct SfxChar {
+    pub source: Handle<AudioSource>,
+    pub settings: PlaybackSettings,
+}
+
+impl SfxChar {
+    pub fn from_source(source: Handle<AudioSource>) -> Self {
+        Self {
+            source,
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for SfxChar {
+    fn default() -> Self {
+        Self {
+            source: Handle::default(),
+            settings: PlaybackSettings::DESPAWN,
+        }
+    }
+}
 
 #[derive(Clone, Component)]
-pub struct SfxWord(pub Handle<AudioSource>);
+pub struct SfxWord {
+    pub source: Handle<AudioSource>,
+    pub settings: PlaybackSettings,
+}
+
+impl SfxWord {
+    pub fn from_source(source: Handle<AudioSource>) -> Self {
+        Self {
+            source,
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for SfxWord {
+    fn default() -> Self {
+        Self {
+            source: Handle::default(),
+            settings: PlaybackSettings::DESPAWN,
+        }
+    }
+}
 
 #[derive(Clone, Component)]
 #[require(SfxRateAccumulator)]
 pub struct SfxRate {
     pub rate: f32,
     pub source: Handle<AudioSource>,
+    pub settings: PlaybackSettings,
+}
+
+impl Default for SfxRate {
+    fn default() -> Self {
+        Self {
+            rate: Scroll::DEFAULT_SPEED,
+            source: Handle::default(),
+            settings: PlaybackSettings::DESPAWN,
+        }
+    }
 }
 
 #[derive(Debug, Default, Component)]
@@ -290,7 +343,7 @@ pub fn play_sfx(
         if let Ok(sfx) = char_query.get(entity) {
             let bytes = section.text.value.as_bytes();
             if bytes.get(index.0).is_some_and(|c| *c != b' ') {
-                commands.spawn(AudioPlayer::new(sfx.0.clone()));
+                commands.spawn((AudioPlayer::new(sfx.source.clone()), sfx.settings));
             }
         }
 
@@ -302,7 +355,7 @@ pub fn play_sfx(
                     .is_some_and(|c| *c == b' ')
                     && bytes.get(index.0).is_some_and(|c| *c != b' '))
             {
-                commands.spawn(AudioPlayer::new(sfx.0.clone()));
+                commands.spawn((AudioPlayer::new(sfx.source.clone()), sfx.settings));
             }
         }
     }
@@ -311,7 +364,7 @@ pub fn play_sfx(
         accum.0 += time.delta_secs();
         if accum.0 >= sfx.rate {
             accum.0 -= sfx.rate;
-            commands.spawn(AudioPlayer::new(sfx.source.clone()));
+            commands.spawn((AudioPlayer::new(sfx.source.clone()), sfx.settings));
         }
     }
 }
