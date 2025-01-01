@@ -3,6 +3,7 @@ use super::input::InteractJustPressed;
 use super::section::*;
 use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
+use bevy_seedling::sample::{Sample, SamplePlayer};
 use std::time::Duration;
 use text::TypeWriterCommand;
 
@@ -219,12 +220,12 @@ impl ScrollSfx for SfxRate {}
 
 #[derive(Clone, Component)]
 pub struct SfxChar {
-    pub source: Handle<AudioSource>,
+    pub source: Handle<Sample>,
     pub settings: PlaybackSettings,
 }
 
 impl SfxChar {
-    pub fn from_source(source: Handle<AudioSource>) -> Self {
+    pub fn from_source(source: Handle<Sample>) -> Self {
         Self {
             source,
             ..Default::default()
@@ -243,12 +244,12 @@ impl Default for SfxChar {
 
 #[derive(Clone, Component)]
 pub struct SfxWord {
-    pub source: Handle<AudioSource>,
+    pub source: Handle<Sample>,
     pub settings: PlaybackSettings,
 }
 
 impl SfxWord {
-    pub fn from_source(source: Handle<AudioSource>) -> Self {
+    pub fn from_source(source: Handle<Sample>) -> Self {
         Self {
             source,
             ..Default::default()
@@ -269,7 +270,7 @@ impl Default for SfxWord {
 #[require(SfxRateAccumulator)]
 pub struct SfxRate {
     pub rate: f32,
-    pub source: Handle<AudioSource>,
+    pub source: Handle<Sample>,
     pub settings: PlaybackSettings,
 }
 
@@ -343,7 +344,7 @@ pub fn play_sfx(
         if let Ok(sfx) = char_query.get(entity) {
             let bytes = section.text.value.as_bytes();
             if bytes.get(index.0).is_some_and(|c| *c != b' ') {
-                commands.spawn((AudioPlayer::new(sfx.source.clone()), sfx.settings));
+                commands.spawn((SamplePlayer::new(sfx.source.clone()), sfx.settings));
             }
         }
 
@@ -355,7 +356,7 @@ pub fn play_sfx(
                     .is_some_and(|c| *c == b' ')
                     && bytes.get(index.0).is_some_and(|c| *c != b' '))
             {
-                commands.spawn((AudioPlayer::new(sfx.source.clone()), sfx.settings));
+                commands.spawn((SamplePlayer::new(sfx.source.clone()), sfx.settings));
             }
         }
     }
@@ -364,7 +365,7 @@ pub fn play_sfx(
         accum.0 += time.delta_secs();
         if accum.0 >= sfx.rate {
             accum.0 -= sfx.rate;
-            commands.spawn((AudioPlayer::new(sfx.source.clone()), sfx.settings));
+            commands.spawn((SamplePlayer::new(sfx.source.clone()), sfx.settings));
         }
     }
 }
