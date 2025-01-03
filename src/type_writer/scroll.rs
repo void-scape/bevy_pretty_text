@@ -13,7 +13,7 @@ use text::TypeWriterCommand;
 pub struct Scroll(pub f32);
 
 impl Scroll {
-    pub const DEFAULT_SPEED: f32 = 1. / 20.;
+    pub const DEFAULT_SPEED: f32 = 1. / 30.;
 }
 
 impl Default for Scroll {
