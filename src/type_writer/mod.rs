@@ -7,6 +7,7 @@ pub mod clear;
 pub mod input;
 pub mod scroll;
 pub mod section;
+pub mod sound;
 
 pub struct TypeWriterPlugin;
 
@@ -14,6 +15,8 @@ impl Plugin for TypeWriterPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(InputManagerPlugin::<Input>::default())
             .add_event::<scroll::ScrollTimeout>()
+            .add_event::<sound::CharacterEvent>()
+            .add_event::<sound::WordEvent>()
             .init_resource::<ActionState<Input>>()
             .insert_resource(InputMap::new([
                 (Input::Interact, KeyCode::Space),

@@ -1,9 +1,9 @@
-use super::clear::AwaitClear;
 use super::input::InteractJustPressed;
 use super::section::*;
+use super::sound::WordEvent;
+use super::{clear::AwaitClear, sound::CharacterEvent};
 use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
-use bevy_seedling::sample::{Sample, SamplePlayer};
 use std::time::Duration;
 use text::TypeWriterCommand;
 
@@ -220,23 +220,23 @@ impl ScrollSfx for SfxRate {}
 
 #[derive(Clone, Component)]
 pub struct SfxChar {
-    pub source: Handle<Sample>,
+    // pub source: Handle<Sample>,
     pub settings: PlaybackSettings,
 }
 
-impl SfxChar {
-    pub fn from_source(source: Handle<Sample>) -> Self {
-        Self {
-            source,
-            ..Default::default()
-        }
-    }
-}
+// impl SfxChar {
+//     pub fn from_source(source: Handle<Sample>) -> Self {
+//         Self {
+//             source,
+//             ..Default::default()
+//         }
+//     }
+// }
 
 impl Default for SfxChar {
     fn default() -> Self {
         Self {
-            source: Handle::default(),
+            // source: Handle::default(),
             settings: PlaybackSettings::DESPAWN,
         }
     }
@@ -244,23 +244,23 @@ impl Default for SfxChar {
 
 #[derive(Clone, Component)]
 pub struct SfxWord {
-    pub source: Handle<Sample>,
+    // pub source: Handle<Sample>,
     pub settings: PlaybackSettings,
 }
 
-impl SfxWord {
-    pub fn from_source(source: Handle<Sample>) -> Self {
-        Self {
-            source,
-            ..Default::default()
-        }
-    }
-}
+// impl SfxWord {
+//     pub fn from_source(source: Handle<Sample>) -> Self {
+//         Self {
+//             source,
+//             ..Default::default()
+//         }
+//     }
+// }
 
 impl Default for SfxWord {
     fn default() -> Self {
         Self {
-            source: Handle::default(),
+            // source: Handle::default(),
             settings: PlaybackSettings::DESPAWN,
         }
     }
@@ -270,7 +270,7 @@ impl Default for SfxWord {
 #[require(SfxRateAccumulator)]
 pub struct SfxRate {
     pub rate: f32,
-    pub source: Handle<Sample>,
+    // pub source: Handle<Sample>,
     pub settings: PlaybackSettings,
 }
 
@@ -278,7 +278,7 @@ impl Default for SfxRate {
     fn default() -> Self {
         Self {
             rate: Scroll::DEFAULT_SPEED,
-            source: Handle::default(),
+            // source: Handle::default(),
             settings: PlaybackSettings::DESPAWN,
         }
     }
@@ -338,13 +338,16 @@ pub fn play_sfx(
     char_query: Query<&SfxChar>,
     word_query: Query<&SfxWord>,
     mut rate_query: Query<(&SfxRate, &mut SfxRateAccumulator), (With<Scrolling>, Without<Paused>)>,
+    mut character: EventWriter<CharacterEvent>,
+    mut word: EventWriter<WordEvent>,
     time: Res<Time>,
 ) {
     for (entity, section, index) in text_query.iter() {
         if let Ok(sfx) = char_query.get(entity) {
             let bytes = section.text.value.as_bytes();
             if bytes.get(index.0).is_some_and(|c| *c != b' ') {
-                commands.spawn((SamplePlayer::new(sfx.source.clone()), sfx.settings));
+                // commands.spawn((SamplePlayer::new(sfx.source.clone()), sfx.settings));
+                character.send(CharacterEvent);
             }
         }
 
@@ -356,7 +359,8 @@ pub fn play_sfx(
                     .is_some_and(|c| *c == b' ')
                     && bytes.get(index.0).is_some_and(|c| *c != b' '))
             {
-                commands.spawn((SamplePlayer::new(sfx.source.clone()), sfx.settings));
+                word.send(WordEvent);
+                // commands.spawn((SamplePlayer::new(sfx.source.clone()), sfx.settings));
             }
         }
     }
@@ -365,7 +369,8 @@ pub fn play_sfx(
         accum.0 += time.delta_secs();
         if accum.0 >= sfx.rate {
             accum.0 -= sfx.rate;
-            commands.spawn((SamplePlayer::new(sfx.source.clone()), sfx.settings));
+            // commands.spawn((SamplePlayer::new(sfx.source.clone()), sfx.settings));
+            character.send(CharacterEvent);
         }
     }
 }
