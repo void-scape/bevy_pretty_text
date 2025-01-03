@@ -1,5 +1,6 @@
 use crate::{
     materials::{ShakeMaterial, TextMaterialCache, WaveMaterial},
+    prelude::WrapPadding,
     render::{material::TextMeshMaterial2d, mesh::GlyphMeshCache},
     type_writer::section::TypeWriterSection,
 };
@@ -35,9 +36,17 @@ pub struct GlyphIndex(pub usize);
 
 pub fn compute_info(
     mut commands: Commands,
-    mut sections: Query<(Entity, &TypeWriterSection, &mut TextLayoutInfo), Changed<TextLayoutInfo>>,
+    mut sections: Query<
+        (
+            Entity,
+            &TypeWriterSection,
+            &mut TextLayoutInfo,
+            &WrapPadding,
+        ),
+        Changed<TextLayoutInfo>,
+    >,
 ) {
-    for (entity, section, mut text_layout_info) in sections.iter_mut() {
+    for (entity, section, mut text_layout_info, padding) in sections.iter_mut() {
         let Some(atlas) = text_layout_info
             .glyphs
             .iter()
@@ -70,8 +79,11 @@ pub fn compute_info(
         }
 
         let mut index = 0;
+        let len = text_layout_info.glyphs.len();
+        let padding_range = len - padding.0..len;
         text_layout_info.glyphs.retain(|_| {
-            let keep = !ranges.iter().any(|r| r.contains(&index));
+            let keep =
+                !padding_range.contains(&index) && !ranges.iter().any(|r| r.contains(&index));
             index += 1;
             keep
         });
@@ -86,6 +98,7 @@ pub fn compute_info(
 #[derive(Component)]
 pub struct UpdateGlyphPosition;
 
+#[allow(clippy::too_many_arguments)]
 pub fn extract_effect_glyphs(
     mut commands: Commands,
     windows: Query<&Window, With<PrimaryWindow>>,

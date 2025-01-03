@@ -2,8 +2,11 @@ use crate::effect::{GlyphIndex, UpdateGlyphPosition};
 use crate::materials::TextMaterialCache;
 use bevy::prelude::*;
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::ops::Range;
 use text::{IndexedTextMod, TypeWriterCommand};
+
+use super::scroll::WrapPadding;
 
 /// Primitive for describing how text should be rendered.
 ///
@@ -128,10 +131,13 @@ impl SectionSlice {
 }
 
 pub fn update_section_slice(
-    mut type_writers: Query<(&mut SectionSlice, &TypeWriterIndex), Changed<TypeWriterIndex>>,
+    mut type_writers: Query<
+        (&mut SectionSlice, &TypeWriterIndex, &WrapPadding),
+        Changed<TypeWriterIndex>,
+    >,
 ) {
-    for (mut slice, TypeWriterIndex(index)) in type_writers.iter_mut() {
-        *slice = SectionSlice::Range(0..*index);
+    for (mut slice, TypeWriterIndex(index), WrapPadding(padding)) in type_writers.iter_mut() {
+        *slice = SectionSlice::Range(0..*index + padding);
     }
 }
 
@@ -155,7 +161,7 @@ pub fn update_section_slice_glyph_indices(
         };
 
         let range = slice.range(section.text.value.len());
-        let mut new_glyphs = range.clone().into_iter().collect::<Vec<_>>();
+        let mut new_glyphs = range.clone().collect::<Vec<_>>();
         let mut retained_glyphs = Vec::with_capacity(range.len());
 
         if let Some(children) = children {
@@ -186,7 +192,7 @@ pub fn update_section_slice_glyph_indices(
         let mut range = range.clone();
         range.end = range.end.min(section.len());
 
-        new_glyphs.into_iter().map(|i| GlyphIndex(i)).for_each(|g| {
+        new_glyphs.into_iter().map(GlyphIndex).for_each(|g| {
             if ranges.iter().any(|r| r.contains(&g.0)) {
                 commands.entity(section_entity).with_child(g);
             }
@@ -206,53 +212,56 @@ pub fn update_section_slice_glyph_indices(
             .text
             .modifiers
             .iter()
-            .filter_map(|m| m.text_mod.color().and_then(|c| Some((m.start, m.end, c))))
+            .filter_map(|m| m.text_mod.color().map(|c| (m.start, m.end, c)))
         {
             let color = TextColor(span.2.into());
             let start = span.0.min(range.end);
             let end = span.1.min(section.len()).min(range.end);
 
-            // TODO: I have looking at this.
-            if start > current_index {
-                let span = commands
-                    .spawn((
-                        font.clone(),
-                        TextSpan(section.text.value[current_index..start].to_owned()),
-                    ))
-                    .id();
-                commands.entity(current_entity).add_child(span);
-                current_entity = span;
-                let span = commands
-                    .spawn((
-                        font.clone(),
-                        color,
-                        TextSpan(section.text.value[start..end].to_owned()),
-                    ))
-                    .id();
-                commands.entity(current_entity).add_child(span);
-                current_entity = span;
+            match start.cmp(&current_index) {
+                Ordering::Greater => {
+                    let span = commands
+                        .spawn((
+                            font.clone(),
+                            TextSpan(section.text.value[current_index..start].to_owned()),
+                        ))
+                        .id();
+                    commands.entity(current_entity).add_child(span);
+                    current_entity = span;
+                    let span = commands
+                        .spawn((
+                            font.clone(),
+                            color,
+                            TextSpan(section.text.value[start..end].to_owned()),
+                        ))
+                        .id();
+                    commands.entity(current_entity).add_child(span);
+                    current_entity = span;
 
-                current_index = end;
-            } else if start == current_index {
-                let span = TextSpan(section.text.value[start..end].to_owned());
-                let span = commands.spawn((font.clone(), color, span)).id();
-                commands.entity(current_entity).add_child(span);
-                current_entity = span;
+                    current_index = end;
+                }
+                Ordering::Equal => {
+                    let span = TextSpan(section.text.value[start..end].to_owned());
+                    let span = commands.spawn((font.clone(), color, span)).id();
+                    commands.entity(current_entity).add_child(span);
+                    current_entity = span;
 
-                current_index = end;
-            } else {
-                warn!("text color mod extends into previous span");
-                let span = commands
-                    .spawn((
-                        font.clone(),
-                        color,
-                        TextSpan(section.text.value[current_index..end].to_owned()),
-                    ))
-                    .id();
-                commands.entity(current_entity).add_child(span);
-                current_entity = span;
+                    current_index = end;
+                }
+                Ordering::Less => {
+                    warn!("text color mod extends into previous span");
+                    let span = commands
+                        .spawn((
+                            font.clone(),
+                            color,
+                            TextSpan(section.text.value[current_index..end].to_owned()),
+                        ))
+                        .id();
+                    commands.entity(current_entity).add_child(span);
+                    current_entity = span;
 
-                current_index = end;
+                    current_index = end;
+                }
             }
         }
 

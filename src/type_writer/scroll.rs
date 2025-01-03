@@ -180,6 +180,9 @@ pub fn reveal_text_with_input(
 #[derive(Component)]
 pub struct ScrollJustFinished;
 
+#[derive(Component)]
+pub struct WrapPadding(pub usize);
+
 pub fn scroll_text(
     mut commands: Commands,
     mut text_query: Query<
@@ -199,13 +202,25 @@ pub fn scroll_text(
         if index.0 < len {
             index.0 += 1;
 
+            let padding = if let Some(padding) = section
+                .text
+                .value
+                .chars()
+                .skip(index.0 - 1)
+                .enumerate()
+                .find_map(|(i, c)| if c == ' ' { Some(i) } else { None })
+            {
+                padding
+            } else {
+                section.len() - index.0
+            };
+            entity.insert(WrapPadding(padding));
+
             if index.0 == len {
                 entity.insert(ScrollJustFinished).remove::<Scrolling>();
             }
-        } else {
-            if *mode == ScrollMode::Repeating {
-                index.0 = 0;
-            }
+        } else if *mode == ScrollMode::Repeating {
+            index.0 = 0;
         }
 
         entity.remove::<IncrementIndex>();
@@ -329,6 +344,7 @@ pub fn propogate_rate_sfx(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn play_sfx(
     mut commands: Commands,
     text_query: Query<

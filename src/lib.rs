@@ -22,10 +22,7 @@
 //! ```
 //! # use bevy::prelude::*;
 //! # use bevy_pretty_text::prelude::*;
-//! (
-//!     Scroll(1. / 2.),
-//!     TypeWriterSection::from("Look at me!"),
-//! );
+//! (Scroll(1. / 2.), TypeWriterSection::from("Look at me!"));
 //! ```
 //!
 //! If you want to directly controll what is displayed, then use a
@@ -58,6 +55,8 @@
 //!     },
 //! );
 //! ```
+
+#![allow(clippy::type_complexity)]
 
 pub extern crate bevy_pretty_macro;
 pub extern crate text;
