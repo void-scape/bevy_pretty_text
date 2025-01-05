@@ -1,15 +1,22 @@
-use crate::impl_text_material2d;
 use bevy::prelude::*;
-use bevy::render::render_resource::{AsBindGroup, ShaderRef};
+use bevy::render::render_resource::AsBindGroup;
+use bevy_pretty_macro::text_shader;
 use text::material::TextMaterial2d;
 
-#[derive(Component, Asset, TypePath, AsBindGroup, Debug, Clone)]
+pub const WAVE_SHADER_HANDLE: Handle<Shader> =
+    Handle::weak_from_u128(140760193724908016942612779440926461879);
+
+#[text_shader]
+#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 pub struct Wave {
-    #[texture(0)]
-    #[sampler(1)]
-    pub texture: Handle<Image>,
     #[uniform(2)]
     pub speed: f32,
+}
+
+impl TextMaterial2d for Wave {
+    fn vertex_shader() -> bevy::render::render_resource::ShaderRef {
+        WAVE_SHADER_HANDLE.into()
+    }
 }
 
 impl Default for Wave {
@@ -29,7 +36,3 @@ impl Wave {
         }
     }
 }
-
-pub const WAVE_SHADER_HANDLE: Handle<Shader> =
-    Handle::weak_from_u128(140760193724908016942612779440926461879);
-impl_text_material2d!(Wave, WAVE_SHADER_HANDLE);

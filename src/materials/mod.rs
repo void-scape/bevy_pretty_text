@@ -4,10 +4,15 @@ use crate::render::material::TextMeshMaterial2d;
 use bevy::asset::load_internal_asset;
 use bevy::prelude::*;
 use bevy::utils::hashbrown::HashMap;
-use text::material::{CacheMaterial, CacheType, TextMaterial2d};
+use text::material::{CacheMaterial, InstanceType, TextMaterial2d, DEFAULT_TEXT_SHADER_HANDLE};
 
 pub mod shake;
 pub mod wave;
+
+pub const TEXT_TYPES_SHADER_HANDLE: Handle<Shader> =
+    Handle::weak_from_u128(289359829217483435493729152664771819836);
+pub const TEXT_FUNCTIONS_SHADER_HANDLE: Handle<Shader> =
+    Handle::weak_from_u128(251997945793016399612357380483481955329);
 
 pub struct TextShaderPlugin;
 
@@ -15,11 +20,29 @@ impl Plugin for TextShaderPlugin {
     fn build(&self, app: &mut App) {
         load_internal_asset!(
             app,
+            TEXT_TYPES_SHADER_HANDLE,
+            "../shaders/text_types.wgsl",
+            Shader::from_wgsl
+        );
+        load_internal_asset!(
+            app,
+            TEXT_FUNCTIONS_SHADER_HANDLE,
+            "../shaders/text_functions.wgsl",
+            Shader::from_wgsl
+        );
+        load_internal_asset!(
+            app,
+            DEFAULT_TEXT_SHADER_HANDLE,
+            "../shaders/text.wgsl",
+            Shader::from_wgsl
+        );
+
+        load_internal_asset!(
+            app,
             wave::WAVE_SHADER_HANDLE,
             "../shaders/wave.wgsl",
             Shader::from_wgsl
         );
-
         load_internal_asset!(
             app,
             shake::SHAKE_SHADER_HANDLE,
@@ -30,25 +53,6 @@ impl Plugin for TextShaderPlugin {
         app.register_text_material::<wave::Wave>()
             .register_text_material::<shake::Shake>();
     }
-}
-
-#[macro_export]
-macro_rules! impl_text_material2d {
-    ($ty:ty, $handle:expr) => {
-        impl TextMaterial2d for $ty {
-            fn set_texture(&mut self, texture: Handle<Image>) {
-                self.texture = texture;
-            }
-
-            fn fragment_shader() -> ShaderRef {
-                $handle.into()
-            }
-
-            fn vertex_shader() -> ShaderRef {
-                $handle.into()
-            }
-        }
-    };
 }
 
 pub fn cache_new_text_materials<M: TextMaterial2d>(
@@ -87,8 +91,8 @@ impl<M: TextMaterial2d> TextMaterialCache<M> {
         atlas_texture: Handle<Image>,
         materials: &mut Assets<M>,
     ) -> Handle<M> {
-        let handle = match M::cache_type() {
-            CacheType::Global => {
+        let handle = match M::instance_type() {
+            InstanceType::Global => {
                 if let Some(handle) = self.global.as_mut() {
                     *handle = materials.add(material.clone());
                     handle.clone()
@@ -98,12 +102,12 @@ impl<M: TextMaterial2d> TextMaterialCache<M> {
                     handle
                 }
             }
-            CacheType::Local => self
+            InstanceType::Local => self
                 .local
                 .entry(root)
                 .or_insert_with(|| materials.add(material.clone()))
                 .clone(),
-            CacheType::Unique => {
+            InstanceType::Unique => {
                 let handle = materials.add(material.clone());
                 self.unique.push(handle.clone());
                 handle

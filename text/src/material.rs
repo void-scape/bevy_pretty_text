@@ -11,50 +11,36 @@ use bevy::{
 };
 use std::hash::Hash;
 
-pub trait InsertTextMaterial2d: CloneMod + Send + Sync + 'static {
-    fn insert(&self, entity_commands: &mut EntityCommands);
-}
+pub const DEFAULT_TEXT_SHADER_HANDLE: Handle<Shader> =
+    Handle::weak_from_u128(179372446187990801614076014261299440926);
 
-#[derive(Component)]
-pub struct CacheMaterial<M> {
-    pub material: M,
-}
-
-impl<T: TextMaterial2d + Component + Clone> InsertTextMaterial2d for T {
-    fn insert(&self, entity_commands: &mut EntityCommands) {
-        entity_commands.insert(CacheMaterial {
-            material: self.clone(),
-        });
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CacheType {
+/// [`TextMaterial2d`] instance behaviour.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InstanceType {
+    /// All effects of this type will be set.
     Global,
+    /// All effects of this type will be set for the root [`TypeWriterSection`] entity.
     Local,
+    /// Every effect will be a unique instance.
+    #[default]
     Unique,
 }
 
-pub trait TextMaterial2d: AsBindGroup + Asset + Clone + Sized {
-    /// Necessary in order to force the texture atlas to sync with the gpu.
-    ///
-    /// TODO: force the update without this method?
-    fn set_texture(&mut self, texture: Handle<Image>);
-
-    fn cache_type() -> CacheType {
-        CacheType::Unique
+pub trait TextMaterial2d: SetAtlasTexture + AsBindGroup + Asset + Clone + Sized {
+    fn instance_type() -> InstanceType {
+        InstanceType::Unique
     }
 
     /// Returns this material's vertex shader. If [`ShaderRef::Default`] is returned, the default mesh vertex shader
     /// will be used.
     fn vertex_shader() -> ShaderRef {
-        ShaderRef::Default
+        DEFAULT_TEXT_SHADER_HANDLE.into()
     }
 
     /// Returns this material's fragment shader. If [`ShaderRef::Default`] is returned, the default mesh fragment shader
     /// will be used.
     fn fragment_shader() -> ShaderRef {
-        ShaderRef::Default
+        DEFAULT_TEXT_SHADER_HANDLE.into()
     }
 
     /// Add a bias to the view depth of the mesh which can be used to force a specific render order.
@@ -77,6 +63,31 @@ pub trait TextMaterial2d: AsBindGroup + Asset + Clone + Sized {
     ) -> Result<(), SpecializedMeshPipelineError> {
         Ok(())
     }
+}
+
+pub trait SetAtlasTexture: Send + Sync + 'static {
+    /// Necessary in order to force the texture atlas to sync with the gpu.
+    ///
+    /// TODO: force the update without this method?
+    fn set_texture(&mut self, texture: Handle<Image>);
+}
+
+/// Used to extract glyphs and cache effects.
+pub trait InsertTextMaterial2d: CloneShaderMod + Send + Sync + 'static {
+    fn insert_text_material_2d(&self, entity_commands: &mut EntityCommands);
+}
+
+impl<T: TextMaterial2d + Clone> InsertTextMaterial2d for T {
+    fn insert_text_material_2d(&self, entity_commands: &mut EntityCommands) {
+        entity_commands.insert(CacheMaterial {
+            material: self.clone(),
+        });
+    }
+}
+
+#[derive(Component)]
+pub struct CacheMaterial<M> {
+    pub material: M,
 }
 
 pub struct TextMaterial2dKey<M: TextMaterial2d> {
@@ -117,11 +128,11 @@ where
     }
 }
 
-pub trait CloneMod {
+pub trait CloneShaderMod {
     fn clone_mod(&self) -> TextMod;
 }
 
-impl<T: InsertTextMaterial2d + Clone> CloneMod for T {
+impl<T: InsertTextMaterial2d + Clone> CloneShaderMod for T {
     fn clone_mod(&self) -> TextMod {
         TextMod::Shader(Box::new(self.clone()))
     }

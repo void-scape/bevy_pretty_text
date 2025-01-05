@@ -45,6 +45,7 @@ fn parse_ticks(input: &mut &str) -> PResult<Token> {
     if let Some(effect) =
         opt(delimited('[', take_while(.., |c| c != ']'), ']')).parse_next(input)?
     {
+        #[cfg(feature = "proc-macro")]
         modifiers.push(TextMod::ShaderStruct(effect.to_string()));
     }
 

@@ -298,7 +298,7 @@ pub fn extract_effect_glyphs(
 
                     match &extracted_glyphs.text_mod {
                         TextMod::Shader(shader) => {
-                            shader.insert(&mut entity_commands);
+                            shader.insert_text_material_2d(&mut entity_commands);
                             entity_commands.insert(TextEffectAtlas(texture.clone()));
                         }
                         _ => unimplemented!(),

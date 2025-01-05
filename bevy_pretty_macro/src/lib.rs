@@ -1,6 +1,52 @@
 use proc_macro::TokenStream;
-use syn::parse::Parse;
+use quote::quote;
+use syn::parse::{Parse, Parser};
 use syn::spanned::Spanned;
+use syn::{parse_macro_input, DeriveInput, Result};
+
+/// Inserts a `texture` field into the struct:
+///
+/// ```
+///  MyStruct {
+///    #[texture(0)]
+///    #[sampler(1)]
+///    pub texture: bevy::prelude::Handle<bevy::prelude::Image>
+///    ...
+///  }
+/// ```
+#[proc_macro_attribute]
+pub fn text_shader(_args: TokenStream, input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    derive_as_text_shader(input).unwrap_or_else(|err| err.to_compile_error().into())
+}
+
+fn derive_as_text_shader(mut input: DeriveInput) -> Result<TokenStream> {
+    match &mut input.data {
+        syn::Data::Struct(ref mut data) => match &mut data.fields {
+            syn::Fields::Named(fields) => {
+                fields.named.push(syn::Field::parse_named.parse2(quote! {
+                    #[texture(0)]
+                    #[sampler(1)]
+                    pub texture: bevy::prelude::Handle<bevy::prelude::Image>
+                })?)
+            }
+            _ => panic!(),
+        },
+        _ => panic!(),
+    }
+    let name = &input.ident;
+
+    Ok(quote! {
+        #input
+
+        impl ::text::material::SetAtlasTexture for #name {
+            fn set_texture(&mut self, texture: Handle<Image>) {
+                self.texture = texture;
+            }
+        }
+    }
+    .into())
+}
 
 #[proc_macro]
 pub fn s(input: TokenStream) -> TokenStream {

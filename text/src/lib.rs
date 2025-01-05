@@ -162,6 +162,7 @@ pub struct IndexedTextMod {
 pub enum TextMod {
     Color(LinearRgba),
     Shader(Box<dyn InsertTextMaterial2d + Send + Sync>),
+    #[cfg(feature = "proc-macro")]
     ShaderStruct(String),
 }
 
@@ -170,6 +171,7 @@ impl Debug for TextMod {
         match self {
             Self::Color(color) => f.write_str(&format!("TextMod::Color({color:?})")),
             Self::Shader(_) => f.write_str("TextMod::Shader( .. )"),
+            #[cfg(feature = "proc-macro")]
             Self::ShaderStruct(s) => f.write_str(&format!("TextMod::ShaderStruct({s})")),
         }
     }
@@ -179,8 +181,9 @@ impl Clone for TextMod {
     fn clone(&self) -> Self {
         match self {
             Self::Color(color) => Self::Color(*color),
-            Self::ShaderStruct(s) => Self::ShaderStruct(s.clone()),
             Self::Shader(s) => s.clone_mod(),
+            #[cfg(feature = "proc-macro")]
+            Self::ShaderStruct(s) => Self::ShaderStruct(s.clone()),
         }
     }
 }
@@ -189,8 +192,9 @@ impl TextMod {
     pub fn is_shader_effect(&self) -> bool {
         match self {
             Self::Shader(_) => true,
-            Self::ShaderStruct(_) => false,
             Self::Color(_) => false,
+            #[cfg(feature = "proc-macro")]
+            Self::ShaderStruct(_) => false,
         }
     }
 

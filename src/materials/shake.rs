@@ -1,15 +1,22 @@
-use crate::impl_text_material2d;
 use bevy::prelude::*;
-use bevy::render::render_resource::{AsBindGroup, ShaderRef};
+use bevy::render::render_resource::AsBindGroup;
+use bevy_pretty_macro::text_shader;
 use text::material::TextMaterial2d;
 
-#[derive(Component, Asset, TypePath, AsBindGroup, Debug, Clone)]
+pub const SHAKE_SHADER_HANDLE: Handle<Shader> =
+    Handle::weak_from_u128(79568255301670276214221003054688204202);
+
+#[text_shader]
+#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 pub struct Shake {
-    #[texture(0)]
-    #[sampler(1)]
-    pub texture: Handle<Image>,
     #[uniform(2)]
     pub intensity: f32,
+}
+
+impl TextMaterial2d for Shake {
+    fn vertex_shader() -> bevy::render::render_resource::ShaderRef {
+        SHAKE_SHADER_HANDLE.into()
+    }
 }
 
 impl Default for Shake {
@@ -29,7 +36,3 @@ impl Shake {
         }
     }
 }
-
-pub const SHAKE_SHADER_HANDLE: Handle<Shader> =
-    Handle::weak_from_u128(79568255301670276214221003054688204202);
-impl_text_material2d!(Shake, SHAKE_SHADER_HANDLE);
