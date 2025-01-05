@@ -1,13 +1,11 @@
 use crate::{
-    materials::{ShakeMaterial, TextMaterialCache, WaveMaterial},
-    prelude::WrapPadding,
-    render::{material::TextMeshMaterial2d, mesh::GlyphMeshCache},
-    type_writer::section::TypeWriterSection,
+    prelude::WrapPadding, render::mesh::GlyphMeshCache, type_writer::section::TypeWriterSection,
 };
 use bevy::{
     prelude::*,
     sprite::Anchor,
     text::{ComputedTextBlock, PositionedGlyph, TextLayoutInfo},
+    utils::hashbrown::HashMap,
     window::PrimaryWindow,
 };
 use text::TextMod;
@@ -26,6 +24,7 @@ pub struct TextEffectInfo {
 #[derive(Debug)]
 pub struct ExtractedGlyphs {
     pub glyphs: Vec<PositionedGlyph>,
+    /// Start of slice in [`TypeWriterSection`].
     pub start: usize,
     pub text_mod: TextMod,
     pub root: Entity,
@@ -33,6 +32,75 @@ pub struct ExtractedGlyphs {
 
 #[derive(Debug, Clone, Copy, Component)]
 pub struct GlyphIndex(pub usize);
+
+/// Maps the [`TypeWriterSection`] text index to the corresponding [`TextLayoutInfo`] glyph index.
+///
+/// This is necessary for wrapping text, which removes the trailing space glyph on each line.
+#[derive(Debug)]
+struct IndexMappedGlyphs {
+    glyphs: HashMap<usize, usize>,
+}
+
+impl IndexMappedGlyphs {
+    pub fn new(text_layout_info: &TextLayoutInfo, font: &TextFont) -> Self {
+        // It would be great to read from the cosmic buffer here, but it is not exposed by the
+        // computed text block. This wastes a lot of compute for no reason.
+        let mut ys = Vec::new();
+        let mut glyph_hash = HashMap::<i64, Vec<i64>>::default();
+        for glyph in text_layout_info.glyphs.iter() {
+            if let Some(y) = ys
+                .iter()
+                .find(|y| (((**y - glyph.position.y) as i64).abs() as f32) < font.font_size)
+            {
+                let storage = glyph_hash.entry(*y as i64).or_insert_with(Vec::new);
+                storage.push(glyph.position.x as i64);
+            } else {
+                ys.push(glyph.position.y);
+                let storage = glyph_hash
+                    .entry(glyph.position.y as i64)
+                    .or_insert_with(Vec::new);
+                storage.push(glyph.position.x as i64);
+            }
+        }
+
+        let mut sorted_glyph_hash = glyph_hash.into_iter().collect::<Vec<_>>();
+        sorted_glyph_hash.sort_by_key(|(y, _)| *y);
+        sorted_glyph_hash.reverse();
+
+        let mut glyphs = HashMap::default();
+        if sorted_glyph_hash.len() == 1 {
+            for i in 0..text_layout_info.glyphs.len() {
+                glyphs.insert(i, i);
+            }
+        } else {
+            let mut accum = 0;
+            let mut current_hash = 0;
+            for i in 0..text_layout_info.glyphs.len() + sorted_glyph_hash.len().saturating_sub(1) {
+                let (_, hashes) = sorted_glyph_hash.get(current_hash).unwrap();
+                if hashes.len() < accum {
+                    accum = 0;
+                    current_hash += 1;
+                }
+
+                glyphs.insert(i, i.saturating_sub(current_hash));
+                accum += 1;
+            }
+        }
+
+        Self { glyphs }
+    }
+
+    pub fn glyph_index(&self, type_writer_index: usize) -> Option<usize> {
+        if type_writer_index == self.glyphs.len() {
+            self.glyphs
+                .get(&(type_writer_index - 1))
+                .copied()
+                .map(|i| i + 1)
+        } else {
+            self.glyphs.get(&type_writer_index).copied()
+        }
+    }
+}
 
 pub fn compute_info(
     mut commands: Commands,
@@ -42,11 +110,12 @@ pub fn compute_info(
             &TypeWriterSection,
             &mut TextLayoutInfo,
             &WrapPadding,
+            &TextFont,
         ),
         Changed<TextLayoutInfo>,
     >,
 ) {
-    for (entity, section, mut text_layout_info, padding) in sections.iter_mut() {
+    for (entity, section, mut text_layout_info, padding, font) in sections.iter_mut() {
         let Some(atlas) = text_layout_info
             .glyphs
             .iter()
@@ -56,6 +125,7 @@ pub fn compute_info(
             continue;
         };
 
+        let index_map = IndexMappedGlyphs::new(&text_layout_info, font);
         let mut extracted_glyphs = Vec::with_capacity(section.text.modifiers.len());
         let mut ranges = Vec::with_capacity(section.text.modifiers.len());
 
@@ -64,23 +134,51 @@ pub fn compute_info(
                 continue;
             }
 
-            let start = tm.start;
-            let end = tm.end.min(text_layout_info.glyphs.len());
-            ranges.push(start..end);
+            match (
+                index_map.glyph_index(tm.end),
+                index_map.glyph_index(tm.start),
+            ) {
+                (Some(end), Some(start)) => {
+                    let end = end.min(text_layout_info.glyphs.len() - padding.0);
 
-            if text_layout_info.glyphs.len() > tm.start {
-                extracted_glyphs.push(ExtractedGlyphs {
-                    glyphs: text_layout_info.glyphs[start..end].to_vec(),
-                    text_mod: tm.text_mod,
-                    root: entity,
-                    start,
-                });
+                    if end > start {
+                        ranges.push(start..end);
+                        extracted_glyphs.push(ExtractedGlyphs {
+                            glyphs: text_layout_info.glyphs[start..end].to_vec(),
+                            text_mod: tm.text_mod.clone(),
+                            root: entity,
+                            start: tm.start,
+                        });
+                    }
+                }
+                (None, Some(start)) => {
+                    let mut end = start;
+                    let mut i = 1;
+                    while let Some(next) = index_map.glyph_index(tm.start + i) {
+                        i += 1;
+                        end = next;
+                    }
+
+                    let end = end.min(text_layout_info.glyphs.len() - padding.0);
+
+                    if end > start {
+                        ranges.push(start..end);
+                        extracted_glyphs.push(ExtractedGlyphs {
+                            glyphs: text_layout_info.glyphs[start..end].to_vec(),
+                            text_mod: tm.text_mod.clone(),
+                            root: entity,
+                            start: tm.start,
+                        });
+                    }
+                }
+                _ => {}
             }
         }
 
-        let mut index = 0;
         let len = text_layout_info.glyphs.len();
         let padding_range = len - padding.0..len;
+
+        let mut index = 0;
         text_layout_info.glyphs.retain(|_| {
             let keep =
                 !padding_range.contains(&index) && !ranges.iter().any(|r| r.contains(&index));
@@ -98,14 +196,22 @@ pub fn compute_info(
 #[derive(Component)]
 pub struct UpdateGlyphPosition;
 
+#[derive(Component)]
+pub struct TextEffectAtlas(Handle<Image>);
+
+impl TextEffectAtlas {
+    pub fn handle(&self) -> Handle<Image> {
+        self.0.clone()
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn extract_effect_glyphs(
     mut commands: Commands,
     windows: Query<&Window, With<PrimaryWindow>>,
-    mut text2d_query: Query<
+    text2d_query: Query<
         (
             Entity,
-            &mut TextMaterialCache,
             &TextEffectInfo,
             &TextLayoutInfo,
             &ComputedTextBlock,
@@ -120,15 +226,13 @@ pub fn extract_effect_glyphs(
         (Entity, &GlyphIndex, &mut Transform),
         (With<Mesh2d>, With<UpdateGlyphPosition>),
     >,
-    mut wave_materials: ResMut<Assets<WaveMaterial>>,
-    mut shake_materials: ResMut<Assets<ShakeMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     atlases: Res<Assets<TextureAtlasLayout>>,
     mut mesh_cache: ResMut<GlyphMeshCache>,
 ) {
     if text2d_query
         .iter()
-        .filter(|q| !q.2.extracted_glyphs.is_empty())
+        .filter(|q| !q.1.extracted_glyphs.is_empty())
         .count()
         == 0
     {
@@ -141,15 +245,8 @@ pub fn extract_effect_glyphs(
         .unwrap_or(1.0);
     let scaling = Transform::from_scale(Vec2::splat(scale_factor.recip()).extend(1.));
 
-    for (
-        section_entity,
-        mut material_cache,
-        effect_info,
-        text_layout_info,
-        computed_block,
-        anchor,
-        children,
-    ) in text2d_query.iter_mut()
+    for (section_entity, effect_info, text_layout_info, computed_block, anchor, children) in
+        text2d_query.iter()
     {
         if effect_info.extracted_glyphs.is_empty() {
             continue;
@@ -199,21 +296,10 @@ pub fn extract_effect_glyphs(
                         transform * Transform::from_translation(glyph.position.extend(0.)),
                     ));
 
-                    match extracted_glyphs.text_mod {
-                        TextMod::Wave => {
-                            entity_commands.insert(TextMeshMaterial2d(material_cache.wave(
-                                section_entity,
-                                texture.clone(),
-                                &mut wave_materials,
-                            )));
-                        }
-                        TextMod::Shake(intensity) => {
-                            entity_commands.insert(TextMeshMaterial2d(material_cache.shake(
-                                section_entity,
-                                intensity,
-                                texture.clone(),
-                                &mut shake_materials,
-                            )));
+                    match &extracted_glyphs.text_mod {
+                        TextMod::Shader(shader) => {
+                            shader.insert(&mut entity_commands);
+                            entity_commands.insert(TextEffectAtlas(texture.clone()));
                         }
                         _ => unimplemented!(),
                     }

@@ -1,18 +1,16 @@
+use super::scroll::WrapPadding;
 use crate::effect::{GlyphIndex, UpdateGlyphPosition};
-use crate::materials::TextMaterialCache;
 use bevy::prelude::*;
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::ops::Range;
 use text::{IndexedTextMod, TypeWriterCommand};
 
-use super::scroll::WrapPadding;
-
 /// Primitive for describing how text should be rendered.
 ///
 /// Use a [`SectionSlice`] to draw a slice of `text` to the screen.
 #[derive(Debug, Default, Clone, Component)]
-#[require(Text2d, TextMaterialCache)]
+#[require(Text2d)]
 pub struct TypeWriterSection {
     pub text: TwText,
     pub commands: Cow<'static, [text::IndexedCommand]>,

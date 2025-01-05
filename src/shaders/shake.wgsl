@@ -58,8 +58,8 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     );
     out.position = mesh_functions::mesh2d_position_world_to_clip(world_position);
 
-    out.position.y += sin((globals.time + uvs.max.y) * 128. * intensity) * 0.05;
-    out.position.x += sin((globals.time + uvs.min.x) * 64. * intensity) * 0.05;
+    out.position.y += sin((globals.time + uvs.max.y) * 128. * intensity) * 0.0025;
+    out.position.x += sin((globals.time + uvs.min.x) * 64. * intensity) * 0.0025;
 
     out.color = vertex.color;
 

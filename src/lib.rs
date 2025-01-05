@@ -69,6 +69,7 @@ pub mod type_writer;
 
 pub mod prelude {
     pub use crate::app::PrettyTextPlugin;
+    pub use crate::materials::{shake::Shake, wave::Wave};
     pub use crate::type_writer::{clear::*, scroll::*, section::*};
     pub use bevy_pretty_macro::s;
 }

@@ -168,7 +168,7 @@ pub fn reveal_text_with_input(
 
         let mut entity = commands.entity(entity);
         entity
-            .insert(ScrollJustFinished)
+            .insert((ScrollJustFinished, WrapPadding(0)))
             .remove::<(IncrementIndex, Paused, InteractJustPressed)>();
 
         if *mode == ScrollMode::Once {
@@ -346,7 +346,7 @@ pub fn propogate_rate_sfx(
 
 #[allow(clippy::too_many_arguments)]
 pub fn play_sfx(
-    mut commands: Commands,
+    _commands: Commands,
     text_query: Query<
         (Entity, &TypeWriterSection, &TypeWriterIndex),
         (With<IncrementIndex>, Without<Paused>),
@@ -359,7 +359,7 @@ pub fn play_sfx(
     time: Res<Time>,
 ) {
     for (entity, section, index) in text_query.iter() {
-        if let Ok(sfx) = char_query.get(entity) {
+        if let Ok(_sfx) = char_query.get(entity) {
             let bytes = section.text.value.as_bytes();
             if bytes.get(index.0).is_some_and(|c| *c != b' ') {
                 // commands.spawn((SamplePlayer::new(sfx.source.clone()), sfx.settings));
@@ -367,7 +367,7 @@ pub fn play_sfx(
             }
         }
 
-        if let Ok(sfx) = word_query.get(entity) {
+        if let Ok(_sfx) = word_query.get(entity) {
             let bytes = section.text.value.as_bytes();
             if (index.0 == 0 && bytes.get(index.0).is_some_and(|c| *c != b' '))
                 || (bytes

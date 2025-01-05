@@ -19,6 +19,7 @@ struct UvRect {
     min: vec2<f32>,
     max: vec2<f32>,
 }
+@group(2) @binding(2) var<uniform> speed: f32;
 
 @vertex
 fn vertex(vertex: Vertex) -> VertexOutput {
@@ -56,7 +57,7 @@ fn vertex(vertex: Vertex) -> VertexOutput {
         vec4<f32>(vertex.position, 1.0)
     );
     out.position = mesh_functions::mesh2d_position_world_to_clip(world_position);
-    out.position.y += sin(globals.time + out.position.x * 4.) * 0.05;
+    out.position.y += sin((globals.time + out.position.x) * speed) * 0.025;
 
     out.color = vertex.color;
 

@@ -1,11 +1,15 @@
 use bevy::color::LinearRgba;
 use bevy::prelude::Component;
+use material::InsertTextMaterial2d;
 use std::borrow::Cow;
+use std::fmt::Debug;
 
+pub mod material;
 mod parse;
+
 pub use parse::*;
 
-#[derive(Debug, Default, Clone, Component)]
+#[derive(Debug, Default, Component)]
 pub struct TextSection {
     pub text: Text,
     pub commands: Vec<IndexedCommand>,
@@ -101,7 +105,7 @@ pub enum TypeWriterCommand {
 }
 
 /// String with a collection of modifiers.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct Text {
     pub value: Cow<'static, str>,
     pub modifiers: Vec<IndexedTextMod>,
@@ -146,7 +150,7 @@ impl From<&'static str> for Text {
 }
 
 /// Text modifier that applies to a [`Text`] section.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct IndexedTextMod {
     pub start: usize,
     /// Non inclusive
@@ -155,19 +159,37 @@ pub struct IndexedTextMod {
 }
 
 /// Modifies visual qualities of [`Text`].
-#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TextMod {
     Color(LinearRgba),
-    Wave,
-    /// With intensity 0.0..1.0
-    Shake(f32),
+    Shader(Box<dyn InsertTextMaterial2d + Send + Sync>),
+    ShaderStruct(String),
+}
+
+impl Debug for TextMod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Color(color) => f.write_str(&format!("TextMod::Color({color:?})")),
+            Self::Shader(_) => f.write_str("TextMod::Shader( .. )"),
+            Self::ShaderStruct(s) => f.write_str(&format!("TextMod::ShaderStruct({s})")),
+        }
+    }
+}
+
+impl Clone for TextMod {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Color(color) => Self::Color(*color),
+            Self::ShaderStruct(s) => Self::ShaderStruct(s.clone()),
+            Self::Shader(s) => s.clone_mod(),
+        }
+    }
 }
 
 impl TextMod {
     pub fn is_shader_effect(&self) -> bool {
         match self {
-            Self::Wave => true,
-            Self::Shake(_) => true,
+            Self::Shader(_) => true,
+            Self::ShaderStruct(_) => false,
             Self::Color(_) => false,
         }
     }

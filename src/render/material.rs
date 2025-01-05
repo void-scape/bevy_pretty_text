@@ -1,6 +1,6 @@
 use crate::render::mesh::TextMesh2dPipeline;
 use bevy::app::{App, Plugin};
-use bevy::asset::{Asset, AssetApp, AssetId, AssetServer, Handle};
+use bevy::asset::{AssetApp, AssetId, AssetServer, Handle};
 use bevy::core_pipeline::{
     core_2d::{AlphaMask2d, AlphaMask2dBinKey, Opaque2d, Opaque2dBinKey, Transparent2d},
     tonemapping::{DebandDither, Tonemapping},
@@ -9,7 +9,6 @@ use bevy::ecs::{
     prelude::*,
     system::{lifetimeless::SRes, SystemParamItem},
 };
-use bevy::image::Image;
 use bevy::math::FloatOrd;
 use bevy::prelude::{Deref, DerefMut, Mesh2d};
 use bevy::reflect::{prelude::ReflectDefault, Reflect};
@@ -27,9 +26,9 @@ use bevy::render::{
         ViewBinnedRenderPhases, ViewSortedRenderPhases,
     },
     render_resource::{
-        AsBindGroup, AsBindGroupError, BindGroup, BindGroupLayout, OwnedBindingResource,
-        PipelineCache, RenderPipelineDescriptor, Shader, ShaderRef, SpecializedMeshPipeline,
-        SpecializedMeshPipelineError, SpecializedMeshPipelines,
+        AsBindGroupError, BindGroup, BindGroupLayout, PipelineCache, RenderPipelineDescriptor,
+        Shader, ShaderRef, SpecializedMeshPipeline, SpecializedMeshPipelineError,
+        SpecializedMeshPipelines,
     },
     renderer::RenderDevice,
     view::{ExtractedView, Msaa, ViewVisibility},
@@ -41,46 +40,7 @@ use bevy::sprite::{
 };
 use bevy::utils::tracing::error;
 use core::{hash::Hash, marker::PhantomData};
-
-pub trait TextMaterial2d: AsBindGroup + Asset + Clone + Sized {
-    /// Necessary in order to force the texture atlas to sync with the gpu.
-    ///
-    /// TODO: force the update without this method?
-    fn set_texture(&mut self, texture: Handle<Image>);
-
-    /// Returns this material's vertex shader. If [`ShaderRef::Default`] is returned, the default mesh vertex shader
-    /// will be used.
-    fn vertex_shader() -> ShaderRef {
-        ShaderRef::Default
-    }
-
-    /// Returns this material's fragment shader. If [`ShaderRef::Default`] is returned, the default mesh fragment shader
-    /// will be used.
-    fn fragment_shader() -> ShaderRef {
-        ShaderRef::Default
-    }
-
-    /// Add a bias to the view depth of the mesh which can be used to force a specific render order.
-    #[inline]
-    fn depth_bias(&self) -> f32 {
-        0.0
-    }
-
-    fn alpha_mode(&self) -> AlphaMode2d {
-        AlphaMode2d::Blend
-    }
-
-    /// Customizes the default [`RenderPipelineDescriptor`].
-    #[allow(unused_variables)]
-    #[inline]
-    fn specialize(
-        descriptor: &mut RenderPipelineDescriptor,
-        layout: &MeshVertexBufferLayoutRef,
-        key: Material2dKey<Self>,
-    ) -> Result<(), SpecializedMeshPipelineError> {
-        Ok(())
-    }
-}
+use text::material::{TextMaterial2d, TextMaterial2dKey};
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect, PartialEq, Eq)]
 #[reflect(Component, Default)]
@@ -176,44 +136,6 @@ pub struct TextMaterial2dPipeline<M: TextMaterial2d> {
     marker: PhantomData<M>,
 }
 
-pub struct Material2dKey<M: TextMaterial2d> {
-    pub mesh_key: Mesh2dPipelineKey,
-    pub bind_group_data: M::Data,
-}
-
-impl<M: TextMaterial2d> Eq for Material2dKey<M> where M::Data: PartialEq {}
-
-impl<M: TextMaterial2d> PartialEq for Material2dKey<M>
-where
-    M::Data: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.mesh_key == other.mesh_key && self.bind_group_data == other.bind_group_data
-    }
-}
-
-impl<M: TextMaterial2d> Clone for Material2dKey<M>
-where
-    M::Data: Clone,
-{
-    fn clone(&self) -> Self {
-        Self {
-            mesh_key: self.mesh_key,
-            bind_group_data: self.bind_group_data.clone(),
-        }
-    }
-}
-
-impl<M: TextMaterial2d> Hash for Material2dKey<M>
-where
-    M::Data: Hash,
-{
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.mesh_key.hash(state);
-        self.bind_group_data.hash(state);
-    }
-}
-
 impl<M: TextMaterial2d> Clone for TextMaterial2dPipeline<M> {
     fn clone(&self) -> Self {
         Self {
@@ -230,7 +152,7 @@ impl<M: TextMaterial2d> SpecializedMeshPipeline for TextMaterial2dPipeline<M>
 where
     M::Data: PartialEq + Eq + Hash + Clone,
 {
-    type Key = Material2dKey<M>;
+    type Key = TextMaterial2dKey<M>;
 
     fn specialize(
         &self,
@@ -426,7 +348,7 @@ pub fn queue_material2d_meshes<M: TextMaterial2d>(
             let pipeline_id = pipelines.specialize(
                 &pipeline_cache,
                 &material2d_pipeline,
-                Material2dKey {
+                TextMaterial2dKey {
                     mesh_key,
                     bind_group_data: material_2d.key.clone(),
                 },
@@ -493,7 +415,7 @@ pub struct Material2dProperties {
 }
 
 pub struct PreparedTextMaterial2d<T: TextMaterial2d> {
-    pub bindings: Vec<(u32, OwnedBindingResource)>,
+    // pub bindings: Vec<(u32, OwnedBindingResource)>,
     pub bind_group: BindGroup,
     pub key: T::Data,
     pub properties: Material2dProperties,
@@ -523,7 +445,7 @@ impl<M: TextMaterial2d> RenderAsset for PreparedTextMaterial2d<M> {
                 let mut mesh_pipeline_key_bits = Mesh2dPipelineKey::empty();
                 mesh_pipeline_key_bits.insert(alpha_mode_pipeline_key(material.alpha_mode()));
                 Ok(PreparedTextMaterial2d {
-                    bindings: prepared.bindings,
+                    // bindings: prepared.bindings,
                     bind_group: prepared.bind_group,
                     key: prepared.data,
                     properties: Material2dProperties {
