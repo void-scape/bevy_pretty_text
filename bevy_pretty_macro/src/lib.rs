@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse::{Parse, Parser};
 use syn::spanned::Spanned;
-use syn::{parse_macro_input, DeriveInput, Result};
+use syn::{parse_macro_input, DeriveInput, Error, Result};
 
 /// Inserts a `texture` field into the struct:
 ///
@@ -17,10 +17,12 @@ use syn::{parse_macro_input, DeriveInput, Result};
 #[proc_macro_attribute]
 pub fn text_shader(_args: TokenStream, input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    derive_as_text_shader(input).unwrap_or_else(|err| err.to_compile_error().into())
+    insert_atlas_texture(input)
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
 }
 
-fn derive_as_text_shader(mut input: DeriveInput) -> Result<TokenStream> {
+fn insert_atlas_texture(mut input: DeriveInput) -> Result<proc_macro2::TokenStream> {
     match &mut input.data {
         syn::Data::Struct(ref mut data) => match &mut data.fields {
             syn::Fields::Named(fields) => {
@@ -30,9 +32,14 @@ fn derive_as_text_shader(mut input: DeriveInput) -> Result<TokenStream> {
                     pub texture: bevy::prelude::Handle<bevy::prelude::Image>
                 })?)
             }
-            _ => panic!(),
+            fields => return Err(syn::Error::new_spanned(fields, "fields must be named")),
         },
-        _ => panic!(),
+        _ => {
+            return Err(syn::Error::new_spanned(
+                input.ident,
+                "type must be a struct",
+            ))
+        }
     }
     let name = &input.ident;
 
@@ -44,8 +51,7 @@ fn derive_as_text_shader(mut input: DeriveInput) -> Result<TokenStream> {
                 self.texture = texture;
             }
         }
-    }
-    .into())
+    })
 }
 
 #[proc_macro]
