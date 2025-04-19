@@ -10,6 +10,7 @@ pub struct TypeWriterPlugin;
 impl Plugin for TypeWriterPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<scroll::ScrollTimeout>()
+            .add_event::<input::Input>()
             .add_systems(
                 Update,
                 (

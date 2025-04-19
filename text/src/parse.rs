@@ -7,18 +7,18 @@ use winnow::{
     ascii::float,
     combinator::{alt, delimited, opt, peek, terminated},
     token::{any, take_till, take_while},
-    PResult, Parser,
+    ModalResult, Parser,
 };
 
-fn parse_speed(input: &mut &str) -> PResult<f32> {
+fn parse_speed(input: &mut &str) -> ModalResult<f32> {
     delimited('<', float, '>').parse_next(input)
 }
 
-fn parse_pause(input: &mut &str) -> PResult<f32> {
+fn parse_pause(input: &mut &str) -> ModalResult<f32> {
     delimited('[', float, ']').parse_next(input)
 }
 
-fn parse_effect(input: &mut &str) -> PResult<TextMod> {
+fn parse_effect(input: &mut &str) -> ModalResult<TextMod> {
     alt((
         "wave".map(|_| TextMod::Wave),
         "shake".map(|_| TextMod::Shake(0.5)),
@@ -26,7 +26,7 @@ fn parse_effect(input: &mut &str) -> PResult<TextMod> {
     .parse_next(input)
 }
 
-fn parse_color(input: &mut &str) -> PResult<TextMod> {
+fn parse_color(input: &mut &str) -> ModalResult<TextMod> {
     alt((
         "red".map(|_| TextMod::Color(LinearRgba::RED)),
         "green".map(|_| TextMod::Color(LinearRgba::GREEN)),
@@ -35,7 +35,7 @@ fn parse_color(input: &mut &str) -> PResult<TextMod> {
     .parse_next(input)
 }
 
-fn parse_ticks(input: &mut &str) -> PResult<Token> {
+fn parse_ticks(input: &mut &str) -> ModalResult<Token> {
     '`'.parse_next(input)?;
     let text = take_till(0.., ['|', '`']).parse_next(input)?;
     let mut modifiers = Vec::new();
@@ -58,7 +58,7 @@ fn parse_ticks(input: &mut &str) -> PResult<Token> {
     })
 }
 
-fn parse_normal<'a>(input: &mut &'a str) -> PResult<&'a str> {
+fn parse_normal<'a>(input: &mut &'a str) -> ModalResult<&'a str> {
     take_while(0.., |c| !['[', '<', '`', '{', '}'].contains(&c)).parse_next(input)
 }
 
@@ -136,7 +136,7 @@ pub struct ClosureContext {
     depth: usize,
 }
 
-pub fn parse_text(input: &mut &str, closure_context: &mut ClosureContext) -> PResult<Token> {
+pub fn parse_text(input: &mut &str, closure_context: &mut ClosureContext) -> ModalResult<Token> {
     let mut tokens = Vec::new();
     let info = ClosureInfo::from_context(closure_context);
 
