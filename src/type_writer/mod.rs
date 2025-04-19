@@ -1,7 +1,4 @@
 use bevy::prelude::*;
-use input::Input;
-use leafwing_input_manager::plugin::InputManagerPlugin;
-use leafwing_input_manager::prelude::{ActionState, InputMap};
 
 pub mod clear;
 pub mod input;
@@ -12,13 +9,7 @@ pub struct TypeWriterPlugin;
 
 impl Plugin for TypeWriterPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(InputManagerPlugin::<Input>::default())
-            .add_event::<scroll::ScrollTimeout>()
-            .init_resource::<ActionState<Input>>()
-            .insert_resource(InputMap::new([
-                (Input::Interact, KeyCode::Space),
-                (Input::Interact, KeyCode::Enter),
-            ]))
+        app.add_event::<scroll::ScrollTimeout>()
             .add_systems(
                 Update,
                 (

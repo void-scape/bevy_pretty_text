@@ -1,3 +1,4 @@
+#![allow(unused)]
 use super::TextMod;
 use crate::TypeWriterCommand;
 use bevy::color::LinearRgba;
@@ -115,7 +116,7 @@ impl ParsedSection {
 }
 
 #[derive(Debug)]
-struct ClosureInfo {
+pub struct ClosureInfo {
     closure_index: usize,
     depth: usize,
 }

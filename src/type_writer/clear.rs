@@ -54,6 +54,7 @@ pub fn clear_section(
 #[derive(Component)]
 pub struct OnClear(pub SystemId);
 
+/// A typewriter with `AwaitClear` will await the [`Input`] event before clearing and continuing.
 #[derive(Default, Component)]
 pub struct AwaitClear;
 

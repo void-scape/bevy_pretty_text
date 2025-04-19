@@ -493,6 +493,7 @@ pub struct Material2dProperties {
 }
 
 pub struct PreparedTextMaterial2d<T: TextMaterial2d> {
+    #[allow(unused)]
     pub bindings: Vec<(u32, OwnedBindingResource)>,
     pub bind_group: BindGroup,
     pub key: T::Data,

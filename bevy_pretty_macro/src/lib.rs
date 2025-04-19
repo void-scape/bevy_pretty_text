@@ -1,8 +1,6 @@
 use proc_macro::TokenStream;
-use quote::ToTokens;
 use syn::parse::Parse;
 use syn::spanned::Spanned;
-use text::TypeWriterCommand;
 
 #[proc_macro]
 pub fn s(input: TokenStream) -> TokenStream {
