@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = "0.15"
+bevy = { version = "0.15", default-features = false, features = [
+    "bevy_color",
+    "bevy_text",
+    "bevy_window",
+] }
 rand = "0.8"
 quote = { version = "1.0.37", default-features = false, optional = true }
 syn = { version = "2.0.90", optional = true }

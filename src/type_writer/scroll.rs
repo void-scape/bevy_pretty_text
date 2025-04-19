@@ -3,7 +3,7 @@ use super::input::InteractJustPressed;
 use super::section::*;
 use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 use text::TypeWriterCommand;
 
 /// Scrolls through a [`TypeWriterSection`] with a specified `character per second` speed.
@@ -217,51 +217,38 @@ impl ScrollSfx for SfxChar {}
 impl ScrollSfx for SfxWord {}
 impl ScrollSfx for SfxRate {}
 
-#[derive(Clone, Component)]
-pub struct SfxChar {
-    pub source: Handle<AudioSource>,
-    pub settings: PlaybackSettings,
+#[derive(Clone)]
+struct SoundBundle(Arc<dyn Fn(&mut Commands) + Send + Sync + 'static>);
+
+impl SoundBundle {
+    fn new(bundle: impl Bundle + Clone) -> Self {
+        Self(Arc::new(move |commands| {
+            commands.spawn(bundle.clone());
+        }))
+    }
 }
+
+impl Default for SoundBundle {
+    fn default() -> Self {
+        Self(Arc::new(|_| ()))
+    }
+}
+
+#[derive(Clone, Component, Default)]
+pub struct SfxChar(SoundBundle);
 
 impl SfxChar {
-    pub fn from_source(source: Handle<AudioSource>) -> Self {
-        Self {
-            source,
-            ..Default::default()
-        }
+    pub fn new(bundle: impl Bundle + Clone) -> Self {
+        Self(SoundBundle::new(bundle))
     }
 }
 
-impl Default for SfxChar {
-    fn default() -> Self {
-        Self {
-            source: Handle::default(),
-            settings: PlaybackSettings::DESPAWN,
-        }
-    }
-}
-
-#[derive(Clone, Component)]
-pub struct SfxWord {
-    pub source: Handle<AudioSource>,
-    pub settings: PlaybackSettings,
-}
+#[derive(Clone, Component, Default)]
+pub struct SfxWord(SoundBundle);
 
 impl SfxWord {
-    pub fn from_source(source: Handle<AudioSource>) -> Self {
-        Self {
-            source,
-            ..Default::default()
-        }
-    }
-}
-
-impl Default for SfxWord {
-    fn default() -> Self {
-        Self {
-            source: Handle::default(),
-            settings: PlaybackSettings::DESPAWN,
-        }
+    pub fn new(bundle: impl Bundle + Clone) -> Self {
+        Self(SoundBundle::new(bundle))
     }
 }
 
@@ -269,16 +256,23 @@ impl Default for SfxWord {
 #[require(SfxRateAccumulator)]
 pub struct SfxRate {
     pub rate: f32,
-    pub source: Handle<AudioSource>,
-    pub settings: PlaybackSettings,
+    bundle: SoundBundle,
+}
+
+impl SfxRate {
+    pub fn new(rate: f32, bundle: impl Bundle + Clone) -> Self {
+        Self {
+            rate,
+            bundle: SoundBundle::new(bundle),
+        }
+    }
 }
 
 impl Default for SfxRate {
     fn default() -> Self {
         Self {
             rate: Scroll::DEFAULT_SPEED,
-            source: Handle::default(),
-            settings: PlaybackSettings::DESPAWN,
+            bundle: SoundBundle::default(),
         }
     }
 }
@@ -343,7 +337,7 @@ pub fn play_sfx(
         if let Ok(sfx) = char_query.get(entity) {
             let bytes = section.text.value.as_bytes();
             if bytes.get(index.0).is_some_and(|c| *c != b' ') {
-                commands.spawn((AudioPlayer::new(sfx.source.clone()), sfx.settings));
+                (sfx.0 .0)(&mut commands);
             }
         }
 
@@ -355,7 +349,7 @@ pub fn play_sfx(
                     .is_some_and(|c| *c == b' ')
                     && bytes.get(index.0).is_some_and(|c| *c != b' '))
             {
-                commands.spawn((AudioPlayer::new(sfx.source.clone()), sfx.settings));
+                (sfx.0 .0)(&mut commands);
             }
         }
     }
@@ -364,7 +358,8 @@ pub fn play_sfx(
         accum.0 += time.delta_secs();
         if accum.0 >= sfx.rate {
             accum.0 -= sfx.rate;
-            commands.spawn((AudioPlayer::new(sfx.source.clone()), sfx.settings));
+
+            (sfx.bundle.0)(&mut commands);
         }
     }
 }
