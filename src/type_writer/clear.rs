@@ -33,15 +33,15 @@ pub fn clear_section(
 
         if let Some(children) = children {
             for child in children.iter() {
-                if let Ok(entity) = child_despawn_query.get(*child) {
-                    commands.entity(entity).despawn_recursive();
+                if let Ok(entity) = child_despawn_query.get(child) {
+                    commands.entity(entity).despawn();
                 }
             }
         }
 
         for (despawn_entity, root_entity) in despawn_query.iter() {
             if entity == root_entity.0 {
-                commands.entity(despawn_entity).despawn_recursive();
+                commands.entity(despawn_entity).despawn();
             }
         }
 

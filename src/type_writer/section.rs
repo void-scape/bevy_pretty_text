@@ -160,12 +160,12 @@ pub fn update_section_slice_glyph_indices(
 
         if let Some(children) = children {
             for child in children.iter() {
-                if let Ok((entity, index)) = glyphs.get(*child) {
+                if let Ok((entity, index)) = glyphs.get(child) {
                     if range.contains(&index.0) {
                         retained_glyphs.push(index.0);
                         commands.entity(entity).insert(UpdateGlyphPosition);
                     } else {
-                        commands.entity(entity).despawn_recursive();
+                        commands.entity(entity).despawn();
                     }
                 }
             }
@@ -194,8 +194,8 @@ pub fn update_section_slice_glyph_indices(
 
         if let Some(children) = children {
             for child in children.iter() {
-                if let Ok(entity) = spans.get(*child) {
-                    commands.entity(entity).despawn_recursive();
+                if let Ok(entity) = spans.get(child) {
+                    commands.entity(entity).despawn();
                 }
             }
         }

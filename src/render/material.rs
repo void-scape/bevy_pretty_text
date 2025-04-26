@@ -10,6 +10,7 @@ use bevy::ecs::{
     system::{lifetimeless::SRes, SystemParamItem},
 };
 use bevy::image::Image;
+use bevy::log::error;
 use bevy::math::FloatOrd;
 use bevy::prelude::{Deref, DerefMut, Mesh2d};
 use bevy::reflect::{prelude::ReflectDefault, Reflect};
@@ -39,7 +40,6 @@ use bevy::sprite::{
     AlphaMode2d, DrawMesh2d, Material2dBindGroupId, Mesh2dPipelineKey, RenderMesh2dInstances,
     SetMesh2dBindGroup, SetMesh2dViewBindGroup,
 };
-use bevy::utils::tracing::error;
 use core::{hash::Hash, marker::PhantomData};
 
 pub trait TextMaterial2d: AsBindGroup + Asset + Clone + Sized {

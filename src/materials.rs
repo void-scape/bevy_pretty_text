@@ -1,8 +1,8 @@
 use crate::render::material::TextMaterial2d;
 use bevy::asset::load_internal_asset;
+use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::render::render_resource::{AsBindGroup, ShaderRef};
-use bevy::utils::hashbrown::HashMap;
 
 // TODO: cache based on atlases so materials can be shared across root entities.
 //

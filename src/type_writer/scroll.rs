@@ -74,7 +74,7 @@ pub fn update_scroll_timer(
     for (entity, mut timer) in timers.iter_mut() {
         timer.0.tick(time.delta());
         if timer.0.just_finished() {
-            writer.send(ScrollTimeout(entity));
+            writer.write(ScrollTimeout(entity));
         }
     }
 
@@ -287,7 +287,7 @@ pub fn propogate_char_sfx(
 ) {
     for (children, sfx) in textbox_query.iter() {
         for child in children.iter() {
-            if let Ok(entity) = text_query.get(*child) {
+            if let Ok(entity) = text_query.get(child) {
                 commands.entity(entity).insert(sfx.clone());
             }
         }
@@ -301,7 +301,7 @@ pub fn propogate_word_sfx(
 ) {
     for (children, sfx) in textbox_query.iter() {
         for child in children.iter() {
-            if let Ok(entity) = text_query.get(*child) {
+            if let Ok(entity) = text_query.get(child) {
                 commands.entity(entity).insert(sfx.clone());
             }
         }
@@ -315,7 +315,7 @@ pub fn propogate_rate_sfx(
 ) {
     for (children, sfx) in textbox_query.iter() {
         for child in children.iter() {
-            if let Ok(entity) = text_query.get(*child) {
+            if let Ok(entity) = text_query.get(child) {
                 commands.entity(entity).insert(sfx.clone());
             }
         }

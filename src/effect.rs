@@ -151,7 +151,7 @@ pub fn extract_effect_glyphs(
         let mut color = LinearRgba::WHITE;
 
         for child in children.iter() {
-            if let Ok((entity, index)) = glyphs_to_render.get(*child) {
+            if let Ok((entity, index)) = glyphs_to_render.get(child) {
                 if let Some(extracted_glyphs) = effect_info.extracted_glyphs.iter().find(|g| {
                     g.root == section_entity
                         && (g.start..g.start + g.glyphs.len()).contains(&index.0)
@@ -205,7 +205,7 @@ pub fn extract_effect_glyphs(
                         _ => unimplemented!(),
                     }
                 }
-            } else if let Ok((entity, index, mut t)) = glyphs_to_update.get_mut(*child) {
+            } else if let Ok((entity, index, mut t)) = glyphs_to_update.get_mut(child) {
                 if let Some(extracted_glyphs) = effect_info.extracted_glyphs.iter().find(|g| {
                     g.root == section_entity
                         && (g.start..g.start + g.glyphs.len()).contains(&index.0)

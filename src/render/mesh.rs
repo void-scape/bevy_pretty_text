@@ -1,5 +1,6 @@
 use bevy::{
     core_pipeline::core_2d::{Transparent2d, CORE_2D_DEPTH_FORMAT},
+    platform::collections::HashMap,
     prelude::*,
     render::{
         mesh::{Indices, MeshVertexAttribute, VertexAttributeValues},
@@ -21,7 +22,6 @@ use bevy::{
         SetMesh2dViewBindGroup,
     },
     text::PositionedGlyph,
-    utils::hashbrown::HashMap,
 };
 
 #[derive(Default, Resource)]
