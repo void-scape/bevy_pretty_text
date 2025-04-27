@@ -10,13 +10,14 @@ use bevy::ecs::{
     system::{lifetimeless::SRes, SystemParamItem},
 };
 use bevy::image::Image;
-use bevy::log::error;
+use bevy::log::*;
 use bevy::math::FloatOrd;
 use bevy::prelude::{Deref, DerefMut, Mesh2d};
 use bevy::reflect::{prelude::ReflectDefault, Reflect};
+use bevy::render::batching::gpu_preprocessing::{GpuPreprocessingMode, GpuPreprocessingSupport};
 use bevy::render::render_resource::SpecializedRenderPipeline;
 use bevy::render::sync_world::MainEntityHashMap;
-use bevy::render::view::RenderVisibleEntities;
+use bevy::render::view::{RenderVisibleEntities, RetainedViewEntity};
 use bevy::render::{
     mesh::{MeshVertexBufferLayoutRef, RenderMesh},
     render_asset::{
@@ -64,10 +65,6 @@ pub trait TextMaterial2d: AsBindGroup + Asset + Clone + Sized {
     #[inline]
     fn depth_bias(&self) -> f32 {
         0.0
-    }
-
-    fn alpha_mode(&self) -> AlphaMode2d {
-        AlphaMode2d::Blend
     }
 
     /// Customizes the default [`RenderPipelineDescriptor`].
@@ -322,14 +319,6 @@ impl<P: PhaseItem, M: TextMaterial2d, const I: usize> RenderCommand<P>
     }
 }
 
-pub const fn alpha_mode_pipeline_key(alpha_mode: AlphaMode2d) -> Mesh2dPipelineKey {
-    match alpha_mode {
-        AlphaMode2d::Blend => Mesh2dPipelineKey::BLEND_ALPHA,
-        AlphaMode2d::Mask(_) => Mesh2dPipelineKey::MAY_DISCARD,
-        _ => Mesh2dPipelineKey::NONE,
-    }
-}
-
 pub const fn tonemapping_pipeline_key(tonemapping: Tonemapping) -> Mesh2dPipelineKey {
     match tonemapping {
         Tonemapping::None => Mesh2dPipelineKey::TONEMAP_METHOD_NONE,
@@ -358,10 +347,7 @@ pub fn queue_material2d_meshes<M: TextMaterial2d>(
     mut render_mesh_instances: ResMut<RenderMesh2dInstances>,
     render_material_instances: Res<RenderTextMaterial2dInstances<M>>,
     mut transparent_render_phases: ResMut<ViewSortedRenderPhases<Transparent2d>>,
-    mut opaque_render_phases: ResMut<ViewBinnedRenderPhases<Opaque2d>>,
-    mut alpha_mask_render_phases: ResMut<ViewBinnedRenderPhases<AlphaMask2d>>,
     views: Query<(
-        Entity,
         &ExtractedView,
         &RenderVisibleEntities,
         &Msaa,
@@ -375,22 +361,13 @@ pub fn queue_material2d_meshes<M: TextMaterial2d>(
         return;
     }
 
-    for (view_entity, view, visible_entities, msaa, tonemapping, dither) in &views {
-        let Some(transparent_phase) = transparent_render_phases.get_mut(&view_entity) else {
-            continue;
-        };
-        let Some(opaque_phase) = opaque_render_phases.get_mut(&view_entity) else {
-            continue;
-        };
-        let Some(alpha_mask_phase) = alpha_mask_render_phases.get_mut(&view_entity) else {
+    for (view, visible_entities, msaa, tonemapping, dither) in &views {
+        let Some(transparent_phase) = transparent_render_phases.get_mut(&view.retained_view_entity)
+        else {
             continue;
         };
 
         let draw_transparent_2d = transparent_draw_functions
-            .read()
-            .id::<DrawTextMaterial2d<M>>();
-        let draw_opaque_2d = opaque_draw_functions.read().id::<DrawTextMaterial2d<M>>();
-        let draw_alpha_mask_2d = alpha_mask_draw_functions
             .read()
             .id::<DrawTextMaterial2d<M>>();
 
@@ -445,32 +422,6 @@ pub fn queue_material2d_meshes<M: TextMaterial2d>(
             let mesh_z = mesh_instance.transforms.world_from_local.translation.z;
 
             match material_2d.properties.alpha_mode {
-                AlphaMode2d::Opaque => {
-                    let bin_key = Opaque2dBinKey {
-                        pipeline: pipeline_id,
-                        draw_function: draw_opaque_2d,
-                        asset_id: mesh_instance.mesh_asset_id.into(),
-                        material_bind_group_id: material_2d.get_bind_group_id().0,
-                    };
-                    opaque_phase.add(
-                        bin_key,
-                        (*render_entity, *visible_entity),
-                        BinnedRenderPhaseType::mesh(mesh_instance.automatic_batching),
-                    );
-                }
-                AlphaMode2d::Mask(_) => {
-                    let bin_key = AlphaMask2dBinKey {
-                        pipeline: pipeline_id,
-                        draw_function: draw_alpha_mask_2d,
-                        asset_id: mesh_instance.mesh_asset_id.into(),
-                        material_bind_group_id: material_2d.get_bind_group_id().0,
-                    };
-                    alpha_mask_phase.add(
-                        bin_key,
-                        (*render_entity, *visible_entity),
-                        BinnedRenderPhaseType::mesh(mesh_instance.automatic_batching),
-                    );
-                }
                 AlphaMode2d::Blend => {
                     transparent_phase.add(Transparent2d {
                         entity: (*render_entity, *visible_entity),
@@ -478,9 +429,12 @@ pub fn queue_material2d_meshes<M: TextMaterial2d>(
                         pipeline: pipeline_id,
                         sort_key: FloatOrd(mesh_z + material_2d.properties.depth_bias),
                         batch_range: 0..1,
-                        extra_index: PhaseItemExtraIndex::NONE,
+                        extra_index: PhaseItemExtraIndex::None,
+                        indexed: false,
+                        extracted_index: 0,
                     });
                 }
+                _ => unreachable!(),
             }
         }
     }
@@ -517,19 +471,20 @@ impl<M: TextMaterial2d> RenderAsset for PreparedTextMaterial2d<M> {
 
     fn prepare_asset(
         material: Self::SourceAsset,
+        _: AssetId<Self::SourceAsset>,
         (render_device, pipeline, material_param): &mut SystemParamItem<Self::Param>,
     ) -> Result<Self, PrepareAssetError<Self::SourceAsset>> {
         match material.as_bind_group(&pipeline.material2d_layout, render_device, material_param) {
             Ok(prepared) => {
                 let mut mesh_pipeline_key_bits = Mesh2dPipelineKey::empty();
-                mesh_pipeline_key_bits.insert(alpha_mode_pipeline_key(material.alpha_mode()));
+                mesh_pipeline_key_bits.insert(Mesh2dPipelineKey::BLEND_ALPHA);
                 Ok(PreparedTextMaterial2d {
-                    bindings: prepared.bindings,
+                    bindings: prepared.bindings.0,
                     bind_group: prepared.bind_group,
                     key: prepared.data,
                     properties: Material2dProperties {
                         depth_bias: material.depth_bias(),
-                        alpha_mode: material.alpha_mode(),
+                        alpha_mode: AlphaMode2d::Blend,
                         mesh_pipeline_key_bits,
                     },
                 })

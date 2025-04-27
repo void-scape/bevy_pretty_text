@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 bevy = { version = "0.16", default-features = false, features = [
+    "std",
     "bevy_color",
     "bevy_text",
     "bevy_window",

@@ -4,8 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.16", default-features = false }
-# bytemuck = "1.20.0"
+bevy = { version = "0.16", default-features = false, features = ["std"] }
 
 [dependencies.text]
 path = "text"
