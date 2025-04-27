@@ -2,31 +2,30 @@ use crate::render::mesh::TextMesh2dPipeline;
 use bevy::app::{App, Plugin};
 use bevy::asset::{Asset, AssetApp, AssetId, AssetServer, Handle};
 use bevy::core_pipeline::{
-    core_2d::{AlphaMask2d, AlphaMask2dBinKey, Opaque2d, Opaque2dBinKey, Transparent2d},
+    core_2d::{AlphaMask2d, Opaque2d, Transparent2d},
     tonemapping::{DebandDither, Tonemapping},
 };
 use bevy::ecs::{
     prelude::*,
-    system::{lifetimeless::SRes, SystemParamItem},
+    system::{SystemParamItem, lifetimeless::SRes},
 };
 use bevy::image::Image;
-use bevy::log::*;
+use bevy::log::error;
 use bevy::math::FloatOrd;
 use bevy::prelude::{Deref, DerefMut, Mesh2d};
-use bevy::reflect::{prelude::ReflectDefault, Reflect};
-use bevy::render::batching::gpu_preprocessing::{GpuPreprocessingMode, GpuPreprocessingSupport};
+use bevy::reflect::{Reflect, prelude::ReflectDefault};
 use bevy::render::render_resource::SpecializedRenderPipeline;
 use bevy::render::sync_world::MainEntityHashMap;
-use bevy::render::view::{RenderVisibleEntities, RetainedViewEntity};
+use bevy::render::view::RenderVisibleEntities;
 use bevy::render::{
+    Extract, ExtractSchedule, Render, RenderApp, RenderSet,
     mesh::{MeshVertexBufferLayoutRef, RenderMesh},
     render_asset::{
-        prepare_assets, PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets,
+        PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets, prepare_assets,
     },
     render_phase::{
-        AddRenderCommand, BinnedRenderPhaseType, DrawFunctions, PhaseItem, PhaseItemExtraIndex,
-        RenderCommand, RenderCommandResult, SetItemPipeline, TrackedRenderPass,
-        ViewBinnedRenderPhases, ViewSortedRenderPhases,
+        AddRenderCommand, DrawFunctions, PhaseItem, PhaseItemExtraIndex, RenderCommand,
+        RenderCommandResult, SetItemPipeline, TrackedRenderPass, ViewSortedRenderPhases,
     },
     render_resource::{
         AsBindGroup, AsBindGroupError, BindGroup, BindGroupLayout, OwnedBindingResource,
@@ -35,7 +34,6 @@ use bevy::render::{
     },
     renderer::RenderDevice,
     view::{ExtractedView, Msaa, ViewVisibility},
-    Extract, ExtractSchedule, Render, RenderApp, RenderSet,
 };
 use bevy::sprite::{
     AlphaMode2d, DrawMesh2d, Material2dBindGroupId, Mesh2dPipelineKey, RenderMesh2dInstances,
@@ -336,8 +334,6 @@ pub const fn tonemapping_pipeline_key(tonemapping: Tonemapping) -> Mesh2dPipelin
 
 #[allow(clippy::too_many_arguments)]
 pub fn queue_material2d_meshes<M: TextMaterial2d>(
-    opaque_draw_functions: Res<DrawFunctions<Opaque2d>>,
-    alpha_mask_draw_functions: Res<DrawFunctions<AlphaMask2d>>,
     transparent_draw_functions: Res<DrawFunctions<Transparent2d>>,
     material2d_pipeline: Res<TextMaterial2dPipeline<M>>,
     mut pipelines: ResMut<SpecializedMeshPipelines<TextMaterial2dPipeline<M>>>,

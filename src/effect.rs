@@ -123,7 +123,7 @@ pub fn extract_effect_glyphs(
     }
 
     let scale_factor = windows
-        .get_single()
+        .single()
         .map(|window| window.resolution.scale_factor())
         .unwrap_or(1.0);
     let scaling = Transform::from_scale(Vec2::splat(scale_factor.recip()).extend(1.));

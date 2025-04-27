@@ -1,8 +1,10 @@
 use bevy::{
-    core_pipeline::core_2d::{Transparent2d, CORE_2D_DEPTH_FORMAT},
+    asset::{load_internal_asset, weak_handle},
+    core_pipeline::core_2d::{CORE_2D_DEPTH_FORMAT, Transparent2d},
     platform::collections::HashMap,
     prelude::*,
     render::{
+        RenderApp,
         mesh::{Indices, MeshVertexAttribute, VertexAttributeValues},
         render_asset::RenderAssetUsages,
         render_phase::{AddRenderCommand, SetItemPipeline},
@@ -15,7 +17,6 @@ use bevy::{
         },
         sync_world::MainEntityHashMap,
         view::ViewTarget,
-        RenderApp,
     },
     sprite::{
         DrawMesh2d, Mesh2dPipeline, Mesh2dPipelineKey, RenderMesh2dInstance, SetMesh2dBindGroup,
@@ -197,59 +198,28 @@ type DrawColoredMesh2d = (
     DrawMesh2d,
 );
 
-const TEXT_MESH2D_SHADER: &str = r"
-#import bevy_sprite::mesh2d_functions
-
-struct Vertex {
-    @builtin(instance_index) instance_index: u32,
-    @location(0) position: vec3<f32>,
-    @location(16) uv_rect: vec4<f32>,
-};
-
-struct VertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) color: vec4<f32>,
-};
-
-@vertex
-fn vertex(vertex: Vertex) -> VertexOutput {
-    var out: VertexOutput;
-    let model = mesh2d_functions::get_world_from_local(vertex.instance_index);
-    out.clip_position = mesh2d_functions::mesh2d_position_local_to_clip(model, vec4<f32>(vertex.position, 1.0));
-
-    // out.color = vec4<f32>((vec4<u32>(vertex.color) >> vec4<u32>(0u, 8u, 16u, 24u)) & vec4<u32>(255u)) / 255.0;
-    out.color = vertex.uv_rect;
-
-    return out;
-}
-
-@fragment
-fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    // return in.color;
-    return vec4(1., 1., 1., 1.);
-}
-";
-
 pub struct TextMesh2dPlugin;
 
-pub const TEXT_MESH2D_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(13828845428412094821);
+pub const TEXT_MESH2D_SHADER_HANDLE: Handle<Shader> =
+    weak_handle!("8d85d4f0-4c73-4390-9e34-3e116211f740");
 
 #[derive(Resource, Deref, DerefMut, Default)]
 pub struct RenderColoredMesh2dInstances(MainEntityHashMap<RenderMesh2dInstance>);
 
 impl Plugin for TextMesh2dPlugin {
     fn build(&self, app: &mut App) {
-        let mut shaders = app.world_mut().resource_mut::<Assets<Shader>>();
-        shaders.insert(
-            &TEXT_MESH2D_SHADER_HANDLE,
-            Shader::from_wgsl(TEXT_MESH2D_SHADER, file!()),
-        );
-
         app.get_sub_app_mut(RenderApp)
             .unwrap()
             .add_render_command::<Transparent2d, DrawColoredMesh2d>()
             .init_resource::<SpecializedRenderPipelines<TextMesh2dPipeline>>()
             .init_resource::<RenderColoredMesh2dInstances>();
+
+        load_internal_asset!(
+            app,
+            TEXT_MESH2D_SHADER_HANDLE,
+            "../shaders/default_text.wgsl",
+            Shader::from_wgsl
+        );
     }
 
     fn finish(&self, app: &mut App) {

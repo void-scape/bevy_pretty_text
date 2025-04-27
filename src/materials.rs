@@ -1,5 +1,5 @@
 use crate::render::material::TextMaterial2d;
-use bevy::asset::load_internal_asset;
+use bevy::asset::{load_internal_asset, weak_handle};
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::render::render_resource::{AsBindGroup, ShaderRef};
@@ -115,8 +115,7 @@ pub struct WaveMaterial {
     pub texture: Handle<Image>,
 }
 
-pub const WAVE_SHADER_HANDLE: Handle<Shader> =
-    Handle::weak_from_u128(140760193724908016942612779440926461879);
+pub const WAVE_SHADER_HANDLE: Handle<Shader> = weak_handle!("590c0854-6e78-4fb7-a700-f31e826185bc");
 impl_text_material2d!(WaveMaterial, WAVE_SHADER_HANDLE);
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
@@ -129,5 +128,5 @@ pub struct ShakeMaterial {
 }
 
 pub const SHAKE_SHADER_HANDLE: Handle<Shader> =
-    Handle::weak_from_u128(79568255301670276214221003054688204202);
+    weak_handle!("391909dd-7f0b-4c3c-8a16-5021e32b2a48");
 impl_text_material2d!(ShakeMaterial, SHAKE_SHADER_HANDLE);
