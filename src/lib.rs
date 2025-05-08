@@ -22,10 +22,7 @@
 //! ```
 //! # use bevy::prelude::*;
 //! # use bevy_pretty_text::prelude::*;
-//! (
-//!     Scroll(1. / 2.),
-//!     TypeWriterSection::from("Look at me!"),
-//! );
+//! (Scroll(1. / 2.), TypeWriterSection::from("Look at me!"));
 //! ```
 //!
 //! If you want to directly controll what is displayed, then use a
@@ -70,6 +67,6 @@ pub mod type_writer;
 
 pub mod prelude {
     pub use crate::app::PrettyTextPlugin;
-    pub use crate::type_writer::{clear::*, scroll::*, section::*};
+    pub use crate::type_writer::{clear::*, input::*, scroll::*, section::*};
     pub use bevy_pretty_macro::s;
 }
