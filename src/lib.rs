@@ -65,8 +65,9 @@ mod materials;
 mod render;
 pub mod type_writer;
 
+pub use app::PrettyTextPlugin;
+
 pub mod prelude {
-    pub use crate::app::PrettyTextPlugin;
     pub use crate::type_writer::{clear::*, input::*, scroll::*, section::*};
     pub use bevy_pretty_macro::s;
 }
